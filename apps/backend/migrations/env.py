@@ -25,9 +25,11 @@ def run_migrations_online():
     try:
         with engine.connect() as connection:
             connection.exec_driver_sql("PRAGMA foreign_keys=ON")
+            connection.commit()  # End SQLAlchemy's implicit transaction from PRAGMA.
             context.configure(connection=connection, target_metadata=target_metadata, render_as_batch=True)
             with context.begin_transaction():
                 context.run_migrations()
+            connection.commit()  # Persist Alembic's revision row on SQLite.
     finally:
         engine.dispose()
 
