@@ -12,12 +12,13 @@ def test_migrations_upgrade_repeatable_and_downgrade(tmp_path, monkeypatch):
     command.upgrade(config, "head")
     engine = create_engine(f"sqlite:///{(tmp_path / 'studio-data' / 'studio.db').as_posix()}")
     try:
-        assert {"studio_metadata", "alembic_version"}.issubset(set(inspect(engine).get_table_names()))
+        assert {"studio_metadata", "projects", "alembic_version"}.issubset(set(inspect(engine).get_table_names()))
     finally:
         engine.dispose()
     command.downgrade(config, "base")
     engine = create_engine(f"sqlite:///{(tmp_path / 'studio-data' / 'studio.db').as_posix()}")
     try:
         assert "studio_metadata" not in inspect(engine).get_table_names()
+        assert "projects" not in inspect(engine).get_table_names()
     finally:
         engine.dispose()
