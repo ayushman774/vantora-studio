@@ -42,3 +42,16 @@ class Episode(Base):
     synopsis: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+class Character(Base):
+    __tablename__ = "characters"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    project_id: Mapped[str] = mapped_column(String(36), ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    role: Mapped[str] = mapped_column(String(80), nullable=False, default="supporting")
+    biography: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    personality: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    appearance: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    continuity_notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
