@@ -15,3 +15,9 @@ temp/
 *.egg-info/
 *.egg
 
+# Desktop generated files
+apps/desktop/src-tauri/gen/
+apps/desktop/src-tauri/icons/icon.ico
+apps/desktop/tsconfig.tsbuildinfo
+# Vite generated cache
+/apps/desktop/.vite/
