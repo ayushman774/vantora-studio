@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from app.api.v1.router import router
 from app.core.config import Settings
@@ -23,6 +24,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             engine.dispose()
 
     app = FastAPI(title="Vantora Studio API", version="0.1.0", lifespan=lifespan)
+    # Local desktop UI origins only; do not allow arbitrary websites.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "http://127.0.0.1:1420",
+            "http://localhost:1420",
+            "tauri://localhost",
+            "http://tauri.localhost",
+        ],
+        allow_methods=["GET"],
+        allow_headers=["Content-Type"],
+    )
     app.include_router(router)
     return app
 
