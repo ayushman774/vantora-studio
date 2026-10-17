@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Activity, Clapperboard, Film, FolderOpen, LayoutDashboard, Settings2, Sparkles } from "lucide-react";
 import { getBackendHealth, type HealthState } from "./api";
-import Projects from "./Projects";
+import Projects from "./ProjectLibrary";
 
 const pages = [
   { name: "Overview", icon: LayoutDashboard },
