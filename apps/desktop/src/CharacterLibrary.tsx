@@ -3,6 +3,7 @@ import { ArrowLeft, Pencil, Plus, RefreshCw, Trash2, Users, Search } from "lucid
 import type { Project } from "./projects";
 import CharacterReferences from "./CharacterReferences";
 import CharacterCover from "./CharacterCover";
+import CharacterAssets from "./CharacterAssets";
 import { createCharacter, deleteCharacter, listCharacters, updateCharacter, type Character, type CharacterInput } from "./charactersApi";
 
 const blank: CharacterInput = {
@@ -20,7 +21,7 @@ export default function CharacterLibrary({ project }: { project: Project }) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
-  const [detailTab, setDetailTab] = useState<"profile" | "appearance" | "continuity" | "references">("profile");
+  const [detailTab, setDetailTab] = useState<"profile" | "appearance" | "continuity" | "references" | "assets">("profile");
   const [form, setForm] = useState<CharacterInput>({ ...blank });
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -104,11 +105,12 @@ export default function CharacterLibrary({ project }: { project: Project }) {
         <div className="projects-actions"><button type="button" className="secondary-action" onClick={() => startEdit(selected)}><Pencil size={15}/> Edit</button><button type="button" className="danger-action" disabled={deletingId === selected.id} onClick={() => void remove(selected)}><Trash2 size={15}/> Delete</button></div></div>
       <div className="character-detail-layout"><CharacterCover projectId={project.id} characterId={selected.id}/>
         <div className="character-detail-main">
-          <nav className="character-detail-tabs" aria-label="Character detail sections">{([{id:"profile",label:"Profile"},{id:"appearance",label:"Appearance"},{id:"continuity",label:"Continuity"},{id:"references",label:"References"}] as const).map(t => <button key={t.id} type="button" className={detailTab===t.id?"active":""} onClick={() => setDetailTab(t.id)}>{t.label}</button>)}</nav>
+          <nav className="character-detail-tabs" aria-label="Character detail sections">{([{id:"profile",label:"Profile"},{id:"appearance",label:"Appearance"},{id:"continuity",label:"Continuity"},{id:"references",label:"References"},{id:"assets",label:"Linked Assets"}] as const).map(t => <button key={t.id} type="button" className={detailTab===t.id?"active":""} onClick={() => setDetailTab(t.id)}>{t.label}</button>)}</nav>
           {detailTab==="profile" && <div className="character-info-panel"><h4>Biography</h4><p>{selected.biography || "No biography yet."}</p><h4>Personality</h4><p>{selected.personality || "No personality notes yet."}</p></div>}
           {detailTab==="appearance" && <div className="character-info-panel"><h4>Appearance</h4><p>{selected.appearance || "No appearance details yet."}</p></div>}
           {detailTab==="continuity" && <div className="character-info-panel"><h4>Continuity notes</h4><p>{selected.continuity_notes || "No continuity notes yet."}</p></div>}
           {detailTab==="references" && <CharacterReferences projectId={project.id} characterId={selected.id}/>}
+          {detailTab==="assets" && <CharacterAssets projectId={project.id} characterId={selected.id}/>}
         </div></div>
     </div> : characters.length === 0 ? <div className="project-empty"><Users size={36}/><h2>No characters yet</h2><p>Create your first character to start building your cast.</p><button className="primary-action" type="button" onClick={startCreate}><Plus size={16}/> Create character</button></div> : <>
       <div className="character-filterbar"><label className="character-search"><Search size={16}/><input aria-label="Search characters" placeholder="Search characters…" value={search} onChange={e=>setSearch(e.target.value)}/></label><select aria-label="Filter by role" value={roleFilter} onChange={e=>setRoleFilter(e.target.value)}><option value="all">All roles</option>{roles.map(role=><option key={role} value={role}>{role}</option>)}</select><span>{visible.length} characters</span></div>

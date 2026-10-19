@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ChangeEvent, type FormEvent } from "react";
 import { FolderOpen, ImagePlus, Pencil, RefreshCw, Trash2, X, Images } from "lucide-react";
 import { listProjects, type Project } from "./projects";
+import { listCharacters, type Character } from "./charactersApi";
 import { assetCategories, assetImageUrl, deleteAsset, listAssets, updateAsset, uploadAsset, type Asset, type AssetCategory } from "./assetsApi";
 
 const label = (category: string) => category.charAt(0).toUpperCase() + category.slice(1);
@@ -8,6 +9,8 @@ export default function AssetLibrary() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectId, setProjectId] = useState("");
   const [items, setItems] = useState<Asset[]>([]);
+  const [characters, setCharacters] = useState<Character[]>([]);
+  const [characterId, setCharacterId] = useState("");
   const [filter, setFilter] = useState<"all" | AssetCategory>("all");
   const [uploadCategory, setUploadCategory] = useState<AssetCategory>("concept");
   const [search, setSearch] = useState("");
@@ -31,6 +34,7 @@ export default function AssetLibrary() {
     finally { setLoading(false); }
   }, [projectId]);
   useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => { let active = true; setCharacters([]); if (projectId) listCharacters(projectId).then(data => { if (active) setCharacters(data); }).catch(() => { if (active) setCharacters([]); }); return () => { active = false; }; }, [projectId]);
   useEffect(() => { setPreview(null); setEditing(null); }, [projectId]);
   useEffect(() => {
     if (!preview) return;
@@ -48,13 +52,13 @@ export default function AssetLibrary() {
     catch(err) { setError(err instanceof Error ? err.message : "Upload failed"); }
     finally { setBusy(false); }
   }
-  function edit(asset: Asset) { setEditing(asset); setTitle(asset.title); setCategory(asset.category); setError(""); }
+  function edit(asset: Asset) { setEditing(asset); setTitle(asset.title); setCategory(asset.category); setCharacterId(asset.character_id ?? ""); setError(""); }
   async function save(e: FormEvent) {
     e.preventDefault();
     if (!editing || busy) return;
     if (!title.trim()) { setError("Enter an asset title."); return; }
     setBusy(true);
-    try { await updateAsset(projectId, editing.id, { title: title.trim(), category }); setEditing(null); await refresh(); }
+    try { await updateAsset(projectId, editing.id, { title: title.trim(), category, character_id: characterId || null }); setEditing(null); await refresh(); }
     catch(err) { setError(err instanceof Error ? err.message : "Update failed"); }
     finally { setBusy(false); }
   }
@@ -75,8 +79,8 @@ export default function AssetLibrary() {
       <label className="asset-search">Search<input value={search} onChange={e => setSearch(e.target.value)} placeholder="Find an asset…" /></label>
     </div>
     <div className="asset-uploadbar"><div><strong>{visible.length} assets</strong><span>PNG, JPEG, WebP · Maximum 10 MB</span></div><div className="projects-actions"><select aria-label="Upload category" value={uploadCategory} onChange={e => setUploadCategory(e.target.value as AssetCategory)}>{assetCategories.map(c => <option key={c} value={c}>{label(c)}</option>)}</select><label className={projectId && !busy ? "primary-action asset-upload" : "primary-action asset-upload disabled"}><ImagePlus size={16}/>{busy ? "Working…" : "Upload image"}<input type="file" accept="image/png,image/jpeg,image/webp" disabled={!projectId || busy} onChange={e => void upload(e)}/></label></div></div>
-    {loading ? <div className="project-empty">Loading assets…</div> : !projectId ? <div className="project-empty"><FolderOpen size={36}/><h2>No project available</h2><p>Create a project first, then return to upload assets.</p></div> : items.length === 0 ? <div className="project-empty"><Images size={36}/><h2>No assets yet</h2><p>Upload a test image to start building your project's visual library.</p></div> : visible.length === 0 ? <div className="project-empty">No assets match the selected filters.</div> : <div className="asset-grid">{visible.map(asset => <article className="asset-card" key={asset.id}><button type="button" className="asset-thumb" onClick={() => setPreview(asset)} aria-label={`Preview ${asset.title}`}><img src={assetImageUrl(projectId,asset.id)} alt={asset.title} loading="lazy"/></button><div className="asset-card-info"><span className="project-type">{label(asset.category)}</span><strong title={asset.title}>{asset.title}</strong><small>{(asset.size_bytes/1024/1024).toFixed(2)} MB</small><div className="projects-actions"><button className="secondary-action icon-action" type="button" aria-label={`Edit ${asset.title}`} onClick={() => edit(asset)}><Pencil size={15}/></button><button className="danger-action icon-action" type="button" aria-label={`Delete ${asset.title}`} disabled={busy} onClick={() => void remove(asset)}><Trash2 size={15}/></button></div></div></article>)}</div>}
-    {editing && <div className="asset-modal-backdrop"><form className="project-form asset-editor" onSubmit={e => void save(e)}><div className="project-form-heading"><h2>Edit asset</h2><button className="secondary-action" type="button" onClick={() => setEditing(null)}><X size={16}/> Cancel</button></div><label>Title<input required maxLength={160} autoFocus value={title} onChange={e => setTitle(e.target.value)}/></label><label>Category<select value={category} onChange={e => setCategory(e.target.value as AssetCategory)}>{assetCategories.map(c => <option key={c} value={c}>{label(c)}</option>)}</select></label><button className="primary-action" type="submit" disabled={busy}>{busy ? "Saving…" : "Save changes"}</button></form></div>}
+    {loading ? <div className="project-empty">Loading assets…</div> : !projectId ? <div className="project-empty"><FolderOpen size={36}/><h2>No project available</h2><p>Create a project first, then return to upload assets.</p></div> : items.length === 0 ? <div className="project-empty"><Images size={36}/><h2>No assets yet</h2><p>Upload a test image to start building your project's visual library.</p></div> : visible.length === 0 ? <div className="project-empty">No assets match the selected filters.</div> : <div className="asset-grid">{visible.map(asset => <article className="asset-card" key={asset.id}><button type="button" className="asset-thumb" onClick={() => setPreview(asset)} aria-label={`Preview ${asset.title}`}><img src={assetImageUrl(projectId,asset.id)} alt={asset.title} loading="lazy"/></button><div className="asset-card-info"><span className="project-type">{label(asset.category)}</span><strong title={asset.title}>{asset.title}</strong><small>{(asset.size_bytes/1024/1024).toFixed(2)} MB{asset.character_id ? ` · ${characters.find(c => c.id === asset.character_id)?.name ?? "Linked character"}` : ""}</small><div className="projects-actions"><button className="secondary-action icon-action" type="button" aria-label={`Edit ${asset.title}`} onClick={() => edit(asset)}><Pencil size={15}/></button><button className="danger-action icon-action" type="button" aria-label={`Delete ${asset.title}`} disabled={busy} onClick={() => void remove(asset)}><Trash2 size={15}/></button></div></div></article>)}</div>}
+    {editing && <div className="asset-modal-backdrop"><form className="project-form asset-editor" onSubmit={e => void save(e)}><div className="project-form-heading"><h2>Edit asset</h2><button className="secondary-action" type="button" onClick={() => setEditing(null)}><X size={16}/> Cancel</button></div><label>Title<input required maxLength={160} autoFocus value={title} onChange={e => setTitle(e.target.value)}/></label><label>Category<select value={category} onChange={e => setCategory(e.target.value as AssetCategory)}>{assetCategories.map(c => <option key={c} value={c}>{label(c)}</option>)}</select></label><label>Linked character<select value={characterId} onChange={e => setCharacterId(e.target.value)}><option value="">None</option>{characters.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label><button className="primary-action" type="submit" disabled={busy}>{busy ? "Saving…" : "Save changes"}</button></form></div>}
     {preview && <div className="asset-modal-backdrop" role="dialog" aria-modal="true" aria-label={`Preview ${preview.title}`} onClick={() => setPreview(null)}><div className="asset-preview" onClick={e => e.stopPropagation()}><div className="project-form-heading"><strong>{preview.title}</strong><button type="button" className="secondary-action" onClick={() => setPreview(null)}><X size={16}/> Close</button></div><img src={assetImageUrl(projectId,preview.id)} alt={preview.title}/></div></div>}
   </section>;
 }
