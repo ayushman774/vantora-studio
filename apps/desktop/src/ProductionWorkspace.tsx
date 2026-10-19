@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { ChevronDown, ChevronRight, Film, Plus, Pencil, Trash2, RefreshCw } from "lucide-react";
+import { Film, Plus, Pencil, Trash2, RefreshCw, Layers3, ArrowLeft } from "lucide-react";
 import type { Project } from "./projects";
 import { createSeason, deleteSeason, listSeasons, updateSeason, createEpisode, deleteEpisode, listEpisodes, updateEpisode, type Season, type Episode } from "./workspaceApi";
 
@@ -7,7 +7,7 @@ type Editor = { kind: "season" | "episode"; seasonId?: string; id?: string; numb
 export default function ProductionWorkspace({ project }: { project: Project }) {
   const [seasons, setSeasons] = useState<Season[]>([]);
   const [episodes, setEpisodes] = useState<Record<string, Episode[]>>({});
-  const [expanded, setExpanded] = useState<string[]>([]);
+  const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -23,7 +23,7 @@ export default function ProductionWorkspace({ project }: { project: Project }) {
   }, [project.id]);
   useEffect(() => { void reload(); }, [reload]);
   function editSeason(s?: Season) { setEditor({ kind: "season", id: s?.id, number: s?.number ?? (Math.max(0, ...seasons.map(x => x.number)) + 1), title: s?.title ?? "", text: s?.description ?? "" }); setError(""); }
-  function editEpisode(season: Season, ep?: Episode) { setExpanded(x => x.includes(season.id) ? x : [...x, season.id]); setEditor({ kind: "episode", seasonId: season.id, id: ep?.id, number: ep?.number ?? (Math.max(0, ...(episodes[season.id] ?? []).map(x => x.number)) + 1), title: ep?.title ?? "", text: ep?.synopsis ?? "" }); setError(""); }
+  function editEpisode(season: Season, ep?: Episode) { setSelectedSeasonId(season.id); setEditor({ kind: "episode", seasonId: season.id, id: ep?.id, number: ep?.number ?? (Math.max(0, ...(episodes[season.id] ?? []).map(x => x.number)) + 1), title: ep?.title ?? "", text: ep?.synopsis ?? "" }); setError(""); }
   async function save(e: FormEvent) {
     e.preventDefault(); if (!editor || busy) return;
     if (!editor.title.trim() || !Number.isInteger(editor.number) || editor.number < 1) { setError("Enter a title and a positive whole-number position."); return; }
@@ -48,9 +48,32 @@ export default function ProductionWorkspace({ project }: { project: Project }) {
     if (!window.confirm(`Delete Episode ${ep.number}: ${ep.title} permanently?`)) return;
     setError(""); try { await deleteEpisode(project.id, s.id, ep.id); setEditor(null); await reload(); } catch (e) { setError(e instanceof Error ? e.message : "Delete failed"); }
   }
-  return <section className="production-workspace"><div className="project-toolbar"><div><div className="eyebrow">PRODUCTION STRUCTURE</div><h2>Seasons & Episodes</h2></div><div className="projects-actions"><button className="secondary-action" onClick={() => void reload()}><RefreshCw size={15}/> Refresh</button><button className="primary-action" onClick={() => editSeason()}><Plus size={16}/> Add season</button></div></div>
+  const selectedSeason = seasons.find(s => s.id === selectedSeasonId) ?? seasons[0];
+  return <section className="production-workspace">
+    <div className="project-toolbar"><div><div className="eyebrow">PRODUCTION STRUCTURE</div><h2>Seasons & Episodes</h2></div><div className="projects-actions"><button className="secondary-action" onClick={() => void reload()} disabled={loading}><RefreshCw size={15}/> Refresh</button><button className="primary-action" onClick={() => editSeason()}><Plus size={16}/> Add season</button></div></div>
     {error && <div className="project-error" role="alert">{error}</div>}
-    {editor && <form className="project-form workspace-editor" onSubmit={e => void save(e)}><div className="project-form-heading"><h2>{editor.id ? "Edit" : "New"} {editor.kind}</h2><button className="secondary-action" type="button" onClick={() => setEditor(null)}>Cancel</button></div><label>Number<input type="number" min={1} step={1} required value={editor.number} onChange={e => setEditor({ ...editor, number: Number(e.target.value) })}/></label><label>Title<input required maxLength={160} value={editor.title} onChange={e => setEditor({ ...editor, title: e.target.value })}/></label><label>{editor.kind === "season" ? "Description" : "Synopsis"}<textarea rows={3} maxLength={editor.kind === "season" ? 5000 : 10000} value={editor.text} onChange={e => setEditor({ ...editor, text: e.target.value })}/></label><button className="primary-action" type="submit" disabled={busy}>{busy ? "Saving…" : "Save"}</button></form>}
-    {loading ? <div className="project-empty">Loading production structure…</div> : seasons.length === 0 ? <div className="project-empty"><Film size={35}/><h2>No seasons yet</h2><p>Create Season 1 to start organizing your episodes.</p><button className="primary-action" onClick={() => editSeason()}><Plus size={16}/> Create Season 1</button></div> : <div className="workspace-seasons">{seasons.map(s => { const open = expanded.includes(s.id); return <article className="workspace-season" key={s.id}><div className="workspace-season-head"><button type="button" className="workspace-expand" onClick={() => setExpanded(x => open ? x.filter(id => id !== s.id) : [...x, s.id])} aria-expanded={open}>{open ? <ChevronDown size={20}/> : <ChevronRight size={20}/>}<span className="workspace-season-number">SEASON {s.number}</span><strong>{s.title}</strong><span className="workspace-count">{(episodes[s.id] ?? []).length} episodes</span></button><div className="projects-actions"><button className="secondary-action icon-action" aria-label={`Edit season ${s.number}`} onClick={() => editSeason(s)}><Pencil size={15}/></button><button className="danger-action icon-action" aria-label={`Delete season ${s.number}`} onClick={() => void removeSeason(s)}><Trash2 size={15}/></button></div></div>{open && <div className="workspace-episodes">{s.description && <p className="workspace-description">{s.description}</p>}{(episodes[s.id] ?? []).map(ep => <div className="workspace-episode" key={ep.id}><Film size={18}/><div className="workspace-episode-info"><strong>Episode {ep.number} · {ep.title}</strong>{ep.synopsis && <p>{ep.synopsis}</p>}</div><button className="secondary-action icon-action" aria-label={`Edit episode ${ep.number}`} onClick={() => editEpisode(s, ep)}><Pencil size={15}/></button><button className="danger-action icon-action" aria-label={`Delete episode ${ep.number}`} onClick={() => void removeEpisode(s, ep)}><Trash2 size={15}/></button></div>)}<button className="secondary-action" onClick={() => editEpisode(s)}><Plus size={16}/> Add episode</button></div>}</article>; })}</div>}
+    {editor && <div className="workspace-editor-backdrop" role="presentation"><form className="project-form workspace-editor cinematic-editor" onSubmit={e => void save(e)}>
+      <div className="project-form-heading"><h2>{editor.id ? "Edit" : "New"} {editor.kind}</h2><button className="secondary-action" type="button" onClick={() => setEditor(null)} disabled={busy}><ArrowLeft size={15}/> Cancel</button></div>
+      <label>Number<input autoFocus type="number" min={1} step={1} required value={editor.number} onChange={e => setEditor({ ...editor, number: Number(e.target.value) })}/></label>
+      <label>Title<input required maxLength={160} value={editor.title} onChange={e => setEditor({ ...editor, title: e.target.value })}/></label>
+      <label>{editor.kind === "season" ? "Description" : "Synopsis"}<textarea rows={5} maxLength={editor.kind === "season" ? 5000 : 10000} value={editor.text} onChange={e => setEditor({ ...editor, text: e.target.value })}/></label>
+      <button className="primary-action" type="submit" disabled={busy}>{busy ? "Saving…" : "Save changes"}</button>
+    </form></div>}
+    {loading ? <div className="project-empty">Loading production structure…</div> : seasons.length === 0 ? <div className="project-empty"><Film size={35}/><h2>No seasons yet</h2><p>Create Season 1 to start organizing your episodes.</p><button className="primary-action" onClick={() => editSeason()}><Plus size={16}/> Create Season 1</button></div> :
+    <div className="cinematic-production-layout">
+      <aside className="cinematic-season-list" aria-label="Seasons">
+        <div className="cinematic-panel-label"><Layers3 size={16}/> Seasons <span>{seasons.length}</span></div>
+        {seasons.map(s => <button type="button" key={s.id} className={selectedSeason?.id === s.id ? "cinematic-season-item active" : "cinematic-season-item"} onClick={() => setSelectedSeasonId(s.id)}>
+          <span className="cinematic-season-index">S{s.number}</span><span className="cinematic-season-name"><strong>{s.title}</strong><small>{(episodes[s.id] ?? []).length} episodes</small></span>
+        </button>)}
+      </aside>
+      <div className="cinematic-episode-panel">
+        {selectedSeason && <><div className="cinematic-episode-header"><div><span className="project-type">SEASON {selectedSeason.number}</span><h3>{selectedSeason.title}</h3>{selectedSeason.description && <p>{selectedSeason.description}</p>}</div>
+          <div className="projects-actions"><button className="secondary-action icon-action" aria-label="Edit season" onClick={() => editSeason(selectedSeason)}><Pencil size={15}/></button><button className="danger-action icon-action" aria-label="Delete season" onClick={() => void removeSeason(selectedSeason)}><Trash2 size={15}/></button></div></div>
+          <div className="cinematic-episode-toolbar"><strong>Episodes <span>{(episodes[selectedSeason.id] ?? []).length}</span></strong><button className="primary-action" onClick={() => editEpisode(selectedSeason)}><Plus size={16}/> Add episode</button></div>
+          <div className="cinematic-episode-list">{(episodes[selectedSeason.id] ?? []).length === 0 ? <div className="cinematic-episode-empty">No episodes in this season yet.</div> : (episodes[selectedSeason.id] ?? []).map(ep => <article className="cinematic-episode-row" key={ep.id}><div className="cinematic-episode-number">{String(ep.number).padStart(2,"0")}</div><div className="workspace-episode-info"><strong>{ep.title}</strong>{ep.synopsis && <p>{ep.synopsis}</p>}</div><button className="secondary-action icon-action" aria-label={`Edit episode ${ep.number}`} onClick={() => editEpisode(selectedSeason, ep)}><Pencil size={15}/></button><button className="danger-action icon-action" aria-label={`Delete episode ${ep.number}`} onClick={() => void removeEpisode(selectedSeason, ep)}><Trash2 size={15}/></button></article>)}</div>
+        </>}
+      </div>
+    </div>}
   </section>;
 }
