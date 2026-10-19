@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.api.v1.characters import project_or_404
 from app.api.v1.character_references import valid_image
-from app.database.models import Asset
+from app.database.models import Asset, Character
 
 router = APIRouter(prefix="/projects/{project_id}/assets", tags=["Assets"])
 MEDIA = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
@@ -25,6 +25,7 @@ class AssetOut(BaseModel):
     id: str
     project_id: str
     category: str
+    character_id: str | None
     title: str
     original_name: str
     media_type: str
@@ -36,6 +37,7 @@ class AssetUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
     title: str | None = Field(default=None, min_length=1, max_length=160)
     category: str | None = None
+    character_id: str | None = None
 
 def asset_or_404(db: Session, project_id: str, asset_id: str) -> Asset:
     asset = db.get(Asset, asset_id)
@@ -103,7 +105,7 @@ async def upload_asset(project_id: str, request: Request, category: str = "other
 @router.patch("/{asset_id}", response_model=AssetOut)
 def update_asset(project_id: str, asset_id: str, payload: AssetUpdate, request: Request):
     changes = payload.model_dump(exclude_unset=True)
-    if any(value is None for value in changes.values()):
+    if any(value is None for key, value in changes.items() if key != "character_id"):
         raise HTTPException(422, "Asset fields cannot be null")
     if "category" in changes and changes["category"] not in CATEGORIES:
         raise HTTPException(422, "Invalid asset category")
@@ -113,6 +115,10 @@ def update_asset(project_id: str, asset_id: str, payload: AssetUpdate, request: 
             raise HTTPException(422, "Title cannot be blank")
     with Session(request.app.state.engine) as db:
         asset = asset_or_404(db, project_id, asset_id)
+        if changes.get("character_id") is not None:
+            character = db.get(Character, changes["character_id"])
+            if character is None or character.project_id != project_id:
+                raise HTTPException(422, "Character must belong to this project")
         for key, value in changes.items():
             setattr(asset, key, value)
         db.commit()
