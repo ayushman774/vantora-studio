@@ -35,7 +35,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "http://tauri.localhost",
         ],
         allow_methods=["GET", "POST", "PATCH", "DELETE"],
-        allow_headers=["Content-Type"],
+        allow_headers=["Content-Type", "X-Filename"],
     )
     app.include_router(router)
     return app
