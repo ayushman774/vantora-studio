@@ -28,3 +28,35 @@
 .reference-modal{position:fixed;inset:0;background:#03060bdd;z-index:1000;display:grid;place-items:center;padding:25px}
 .reference-modal-content{display:flex;flex-direction:column;align-items:flex-end;gap:14px;max-width:min(900px,90vw);max-height:90vh}
 .reference-modal-content img{max-width:100%;max-height:75vh;object-fit:contain;border-radius:12px}
+
+/* Asset Library v0.8 */
+.asset-library{width:100%;min-width:0}
+.asset-heading h1{font-size:34px;letter-spacing:-1px;margin:9px 0}
+.asset-heading .intro{margin:0 0 20px;font-size:13px}
+.asset-controls{display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin:12px 0 18px}
+.asset-controls label{display:grid;gap:7px;font-size:12px;color:#a7b5c6;min-width:175px}
+.asset-controls .asset-search{flex:1;min-width:200px}
+.asset-controls input,.asset-controls select,.asset-uploadbar select{background:#18222d;color:#e7eef7;border:1px solid #354457;border-radius:9px;padding:11px 12px;font:inherit}
+.asset-controls input:focus-visible,.asset-controls select:focus-visible,.asset-uploadbar select:focus-visible{outline:2px solid #c2fc5a;outline-offset:1px}
+.asset-uploadbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;background:#151e27;border:1px solid #303e4d;border-radius:11px;padding:15px 18px;margin-bottom:18px}
+.asset-uploadbar>div:first-child{display:grid;gap:5px}
+.asset-uploadbar strong{font-size:14px}
+.asset-uploadbar span{font-size:11px;color:#98a8b9}
+.asset-upload{position:relative;cursor:pointer}
+.asset-upload input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.asset-upload.disabled{opacity:.5;cursor:not-allowed}
+.asset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:16px}
+.asset-card{background:#18232e;border:1px solid #303e4d;border-radius:12px;overflow:hidden;min-width:0}
+.asset-card:hover{border-color:#789f51}
+.asset-thumb{width:100%;aspect-ratio:4/3;padding:0;border:0;background:#26332d;display:block;overflow:hidden}
+.asset-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.asset-card-info{padding:14px;display:grid;gap:8px}
+.asset-card-info strong{font-size:14px;overflow-wrap:anywhere}
+.asset-card-info small{font-size:11px;color:#98a8b9}
+.asset-card-info .projects-actions{margin-top:4px}
+.asset-modal-backdrop{position:fixed;inset:0;z-index:150;background:#020609d9;display:flex;align-items:center;justify-content:center;padding:22px}
+.asset-editor{width:min(480px,95vw);max-height:90vh;overflow:auto;margin:0;background:#151e27}
+.asset-preview{width:min(980px,95vw);max-height:95vh;display:flex;flex-direction:column;gap:14px;background:#151e27;border:1px solid #394859;border-radius:12px;padding:18px}
+.asset-preview img{max-width:100%;max-height:calc(95vh - 110px);object-fit:contain;align-self:center}
+.asset-thumb:focus-visible,.asset-upload:focus-within{outline:2px solid #c2fc5a;outline-offset:2px}
+@media(max-width:900px){.asset-grid{grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}.asset-uploadbar{align-items:flex-start}}
