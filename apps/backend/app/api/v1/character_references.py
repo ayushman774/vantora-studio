@@ -3,6 +3,7 @@ import hashlib
 import os
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import unquote
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
@@ -57,7 +58,7 @@ async def upload_reference(project_id: str, character_id: str, request: Request)
     media_type = request.headers.get("content-type", "").split(";")[0].lower().strip()
     if media_type not in MEDIA:
         raise HTTPException(415, "Only PNG, JPEG, and WebP images are supported")
-    name = request.headers.get("x-filename", "reference-image").strip()
+    name = unquote(request.headers.get("x-filename", "reference-image")).strip()
     name = Path(name.replace("\\", "/")).name[:255] or "reference-image"
     data = bytearray()
     async for chunk in request.stream():
