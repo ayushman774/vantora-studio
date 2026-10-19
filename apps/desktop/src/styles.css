@@ -187,3 +187,17 @@ body,.shell,.main{background:#0b0f14}
 .asset-preview img{max-width:100%;max-height:calc(95vh - 110px);object-fit:contain;align-self:center}
 .asset-thumb:focus-visible,.asset-upload:focus-within{outline:2px solid #c2fc5a;outline-offset:2px}
 @media(max-width:900px){.asset-grid{grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}.asset-uploadbar{align-items:flex-start}}
+
+/* v0.9 — Character-linked production assets */
+.character-assets{min-width:0}
+.character-assets-heading{display:flex;justify-content:space-between;align-items:start;gap:14px;flex-wrap:wrap;margin-bottom:16px}
+.character-assets-heading h4{font-size:15px;color:#eef2f7;margin:0 0 6px}
+.character-assets-heading p{font-size:12px;color:#98a8b9;margin:0;line-height:1.5}
+.character-assets-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:12px}
+.character-asset-card{padding:0;text-align:left;background:#18232e;border:1px solid #354457;border-radius:10px;overflow:hidden;color:#e7eef7;min-width:0;cursor:pointer}
+.character-asset-card:hover{border-color:#c2fc5a}
+.character-asset-card:focus-visible{outline:2px solid #c2fc5a;outline-offset:2px}
+.character-asset-card img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:#26332d}
+.character-asset-card span{display:grid;gap:5px;padding:10px}
+.character-asset-card strong{font-size:12px;overflow-wrap:anywhere}
+.character-asset-card small{font-size:11px;color:#98a8b9;text-transform:capitalize}
