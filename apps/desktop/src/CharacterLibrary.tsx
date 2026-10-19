@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Pencil, Plus, RefreshCw, Trash2, Users, UserRound } from "lucide-react";
 import type { Project } from "./projects";
+import CharacterReferences from "./CharacterReferences";
 import { createCharacter, deleteCharacter, listCharacters, updateCharacter, type Character, type CharacterInput } from "./charactersApi";
 
 const blank: CharacterInput = {
@@ -99,6 +100,7 @@ export default function CharacterLibrary({ project }: { project: Project }) {
       {fields.map(({ key, label }) => character[key] ? <div className="character-detail" key={key}>
         <strong>{label}</strong><p>{character[key]}</p>
       </div> : null)}
+      <CharacterReferences projectId={project.id} characterId={character.id}/>
       <div className="project-meta">Updated {new Date(character.updated_at).toLocaleDateString()}</div>
       <div className="projects-actions character-actions">
         <button className="secondary-action" type="button" onClick={() => startEdit(character)}><Pencil size={15}/> Edit</button>

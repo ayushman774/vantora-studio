@@ -19,6 +19,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             with engine.connect() as conn:
                 conn.execute(text("SELECT 1"))
             app.state.engine = engine
+            app.state.data_root = config.data_root
             yield
         finally:
             engine.dispose()
@@ -34,7 +35,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "http://tauri.localhost",
         ],
         allow_methods=["GET", "POST", "PATCH", "DELETE"],
-        allow_headers=["Content-Type"],
+        allow_headers=["Content-Type", "X-Filename"],
     )
     app.include_router(router)
     return app
