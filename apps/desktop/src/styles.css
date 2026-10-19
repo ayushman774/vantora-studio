@@ -28,3 +28,162 @@
 .reference-modal{position:fixed;inset:0;background:#03060bdd;z-index:1000;display:grid;place-items:center;padding:25px}
 .reference-modal-content{display:flex;flex-direction:column;align-items:flex-end;gap:14px;max-width:min(900px,90vw);max-height:90vh}
 .reference-modal-content img{max-width:100%;max-height:75vh;object-fit:contain;border-radius:12px}
+
+/* Cinematic Studio phase 1 */
+:root{font-family:Inter,'DM Sans',system-ui,sans-serif;background:#0b0f14;color:#eef2f7;color-scheme:dark}
+body,.shell,.main{background:#0b0f14}
+.sidebar{width:224px;background:#121820;border-right:1px solid #25303b;padding:23px 12px 16px}
+.brand{padding:3px 11px 35px}
+.sidebar-label{color:#77879a}
+.nav-item{min-height:41px;padding:10px 12px;border-radius:8px;color:#aab7c7}
+.nav-item:hover{background:#202b36;color:#fff}
+.nav-item.selected{background:#28392c;border-color:#425f40;color:#c2fc5a}
+.topbar{height:60px;padding:0 32px;background:#111820;border-bottom:1px solid #25303b}
+.topbar-breadcrumb,.topbar-status{display:flex;align-items:center;gap:10px}
+.topbar-breadcrumb strong{color:#eaf0f7}
+.topbar-status{font-size:12px;color:#a4b1c0}
+.content{max-width:1440px;padding:35px 32px}
+.content h1{font-size:36px;letter-spacing:-1px;margin:8px 0 10px}
+.intro{font-size:13px;margin-bottom:24px}
+.feature-card,.feature-card.primary{min-height:215px;padding:24px;background:#151b23;border:1px solid #293541;border-radius:12px}
+.feature-card h2{font-size:20px}
+.card-icon,.card-icon.muted{margin-bottom:16px}
+.status-panel{background:#151b23;border-color:#293541}
+.primary-action{background:#c2fc5a;color:#15200e;border-color:#c2fc5a}
+.secondary-action{background:#202a35;border-color:#344253;color:#e3eaf2}
+.nav-item:focus-visible,button:focus-visible{outline:2px solid #c2fc5a;outline-offset:2px}
+@media(max-width:1000px){.sidebar{width:198px}.content{padding:25px 22px}}
+
+/* Cinematic project workspace — phase 2 */
+.projects-view{width:100%;min-width:0}
+.projects-heading{margin-bottom:22px;gap:18px}
+.projects-heading h1{font-size:clamp(26px,3vw,36px);margin:7px 0}
+.projects-heading .intro{margin:0;max-width:720px}
+.cinematic-workspace{width:100%;min-width:0}
+.cinematic-project-header{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;padding:22px 24px;background:#151b23;border:1px solid #2b3745;border-radius:12px 12px 0 0}
+.cinematic-project-header h2{font-size:24px;margin:8px 0 6px;line-height:1.3}
+.cinematic-project-header p{font-size:13px;line-height:1.6;color:#aab6c6;margin:0;max-width:850px}
+.cinematic-project-header .projects-actions{flex-shrink:0}
+.project-menu{position:relative}
+.project-menu summary{display:flex;align-items:center;justify-content:center;cursor:pointer;list-style:none;width:40px;height:40px;border:1px solid #344253;border-radius:8px;background:#202a35}
+.project-menu summary::-webkit-details-marker{display:none}
+.project-menu .danger-action{position:absolute;right:0;top:46px;z-index:5;white-space:nowrap;box-shadow:0 8px 24px #0008}
+.workspace-tabs{display:flex;gap:4px;overflow-x:auto;background:#151b23;border:1px solid #2b3745;border-top:0;padding:0 16px}
+.workspace-tab{display:flex;align-items:center;gap:9px;padding:16px 18px;background:transparent;border:0;border-bottom:2px solid transparent;color:#9daabb;white-space:nowrap;font-size:13px}
+.workspace-tab:hover{color:#fff;background:#1e2832}
+.workspace-tab.active{border-bottom-color:#c2fc5a;color:#c2fc5a;font-weight:600}
+.workspace-tab-body{min-height:320px;padding:25px;background:#10161d;border:1px solid #2b3745;border-top:0;border-radius:0 0 12px 12px}
+.workspace-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.workspace-summary-card{background:#19222c;border:1px solid #2c3948;border-radius:11px;padding:22px;min-width:0}
+.workspace-summary-card>span{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#c2fc5a}
+.workspace-summary-card h3{font-size:19px;margin:12px 0}
+.workspace-summary-card p{font-size:13px;color:#a9b6c5;line-height:1.6}
+.workspace-summary-card button{margin-top:10px}
+.workspace-summary-meta{grid-column:1/-1;font-size:12px;color:#8797a9;padding:5px}
+.workspace-tab-body .production-workspace,.workspace-tab-body .character-library{margin-top:0;padding-top:0;border-top:0}
+.workspace-tab-body .project-toolbar{margin-bottom:22px}
+.workspace-tab-body .project-empty{background:#151e27}
+@media(max-width:900px){.cinematic-project-header{flex-direction:column}.workspace-summary{grid-template-columns:1fr}.workspace-tab-body{padding:16px}}
+
+/* Cinematic character browser and dedicated profile */
+.character-filterbar{display:flex;align-items:center;gap:12px;margin:16px 0 22px;flex-wrap:wrap}
+.character-filterbar>span{margin-left:auto;color:#95a5b7;font-size:12px}
+.character-search{display:flex;align-items:center;gap:9px;background:#18222c;border:1px solid #334254;border-radius:8px;padding:0 12px;min-width:230px;flex:1;max-width:420px;color:#9babbc}
+.character-search input{background:transparent;border:0;color:#f0f4f9;outline:0;width:100%;height:39px;font:inherit;font-size:13px}
+.character-filterbar select{background:#18222c;color:#e5edf6;border:1px solid #334254;border-radius:8px;padding:10px;font:inherit;font-size:13px}
+.cinematic-character-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px}
+.cinematic-character-card{padding:0;display:flex;flex-direction:column;min-width:0;overflow:hidden;text-align:left;border:1px solid #2b3a49;border-radius:11px;background:#19232e;color:inherit;transition:border-color .15s,transform .15s}
+.cinematic-character-card:hover{border-color:#8dc655;transform:translateY(-2px)}
+.character-cover{width:100%;aspect-ratio:4/3;background:#26332e;color:#b4d58b;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.character-cover img{width:100%;height:100%;object-fit:cover;display:block}
+.cinematic-character-card-info{padding:15px;min-width:0}
+.cinematic-character-card-info h3{font-size:19px;margin:7px 0 6px}
+.cinematic-character-card-info p{font-size:12px;color:#a8b7c7;line-height:1.5;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;margin:0}
+.cinematic-character-detail{min-width:0}
+.character-detail-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin:16px 0 22px}
+.character-detail-header h3{font-size:27px;margin:6px 0}
+.character-detail-layout{display:grid;grid-template-columns:minmax(220px,32%) minmax(0,1fr);gap:20px;align-items:start}
+.character-detail-layout>.character-cover{aspect-ratio:3/4;border-radius:12px;border:1px solid #344253}
+.character-detail-main{background:#151e27;border:1px solid #303e4d;border-radius:11px;min-width:0;min-height:300px;padding:0 20px 22px}
+.character-detail-tabs{display:flex;gap:6px;overflow-x:auto;border-bottom:1px solid #344253}
+.character-detail-tabs button{padding:16px 12px;border:0;border-bottom:2px solid transparent;background:transparent;color:#a3b2c3;font-size:13px;white-space:nowrap}
+.character-detail-tabs button.active{color:#c2fc5a;border-bottom-color:#c2fc5a}
+.character-info-panel{padding-top:15px}
+.character-info-panel h4{font-size:12px;letter-spacing:.5px;color:#c2fc5a;margin:16px 0 7px}
+.character-info-panel p{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7;color:#d0d9e5;font-size:13px}
+.character-detail-main .reference-library{margin-top:18px;border-top:0;padding-top:0}
+@media(max-width:900px){.character-detail-layout{grid-template-columns:1fr}.character-detail-layout>.character-cover{max-width:330px}.character-detail-header{flex-wrap:wrap}}
+
+/* Cinematic Studio phase 4 — production two-panel workspace */
+.cinematic-production-layout{display:grid;grid-template-columns:255px minmax(0,1fr);gap:16px;align-items:start}
+.cinematic-season-list,.cinematic-episode-panel{background:#151e27;border:1px solid #303e4d;border-radius:11px;min-width:0;overflow:hidden}
+.cinematic-panel-label{display:flex;align-items:center;gap:9px;color:#d8e2ee;font-weight:600;font-size:13px;padding:19px 16px;border-bottom:1px solid #303e4d}
+.cinematic-panel-label span{margin-left:auto;color:#9aabba}
+.cinematic-season-item{display:flex;align-items:center;gap:12px;width:100%;padding:14px 15px;background:transparent;color:#d9e2ec;border:0;border-left:3px solid transparent;text-align:left}
+.cinematic-season-item:hover{background:#202c38}
+.cinematic-season-item.active{background:#263529;border-left-color:#c2fc5a}
+.cinematic-season-index{display:grid;place-items:center;flex-shrink:0;width:37px;height:37px;border-radius:8px;background:#2b3945;color:#c2fc5a;font-size:12px;font-weight:700}
+.cinematic-season-name{display:grid;gap:5px;min-width:0}
+.cinematic-season-name strong{font-size:13px;overflow-wrap:anywhere}
+.cinematic-season-name small{font-size:11px;color:#9cabbc}
+.cinematic-episode-header{display:flex;justify-content:space-between;align-items:flex-start;gap:15px;padding:23px;border-bottom:1px solid #303e4d}
+.cinematic-episode-header h3{font-size:23px;margin:7px 0}
+.cinematic-episode-header p{font-size:12px;color:#aebccc;line-height:1.6;margin:7px 0 0;white-space:pre-wrap}
+.cinematic-episode-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 22px}
+.cinematic-episode-toolbar strong{font-size:14px}
+.cinematic-episode-toolbar strong span{font-size:12px;color:#a0aebd;margin-left:5px}
+.cinematic-episode-list{display:grid;gap:9px;padding:0 20px 20px}
+.cinematic-episode-row{display:flex;align-items:center;gap:12px;background:#1a2631;border:1px solid #303e4d;border-radius:9px;padding:13px}
+.cinematic-episode-number{display:grid;place-items:center;flex-shrink:0;width:37px;height:37px;border-radius:8px;background:#2b3945;color:#c2fc5a;font-size:13px;font-weight:700}
+.cinematic-episode-empty{padding:32px;text-align:center;color:#a3b2c2;font-size:13px;border:1px dashed #3a4858;border-radius:9px}
+.workspace-editor-backdrop{position:fixed;inset:0;z-index:100;background:#03070bc9;display:flex;justify-content:flex-end;align-items:stretch}
+.cinematic-editor{width:min(480px,94vw);max-width:none;height:100%;overflow-y:auto;margin:0;border-radius:0;border:0;border-left:1px solid #3a4858;padding:30px;background:#151e27;align-content:start}
+.cinematic-editor .project-form-heading{align-items:flex-start}
+.cinematic-editor .project-form-heading h2{font-size:22px}
+@media(max-width:900px){.cinematic-production-layout{grid-template-columns:1fr}.cinematic-season-list{display:flex;flex-wrap:wrap}.cinematic-panel-label{width:100%}.cinematic-season-item{width:auto;flex:1;min-width:170px}}
+
+/* Final UI polish: gallery, focus, compact laptop layouts */
+.reference-guidance{font-size:11px;color:#95a5b7;margin:12px 0 4px}
+.reference-empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:170px;margin-top:12px;padding:24px;text-align:center;background:#17212b;border:1px dashed #415063;border-radius:11px;color:#aebdcc}
+.reference-empty-state svg{color:#c2fc5a}
+.reference-empty-state strong{color:#eef2f7;font-size:14px}
+.reference-empty-state span{font-size:12px;line-height:1.5}
+.character-detail-main .reference-grid{grid-template-columns:repeat(auto-fill,minmax(135px,1fr));gap:12px}
+.character-detail-main .reference-image-button{height:135px}
+.reference-tile:hover{border-color:#9ac965}
+.reference-image-button:focus-visible,.workspace-tab:focus-visible,.character-detail-tabs button:focus-visible,.cinematic-season-item:focus-visible{outline:2px solid #c2fc5a;outline-offset:-2px}
+.reference-modal-content{background:#121a23;border:1px solid #334253;border-radius:12px;padding:16px;box-shadow:0 24px 80px #000b}
+.project-form input:focus-visible,.project-form textarea:focus-visible,.project-form select:focus-visible,.character-search:focus-within{outline:2px solid #c2fc5a;outline-offset:2px}
+@media(max-width:820px){.content{padding:20px 16px}.topbar{padding:0 16px}.workspace-tab-body{padding:14px}.cinematic-episode-header{padding:16px}.cinematic-episode-list{padding:0 12px 14px}.cinematic-episode-row{gap:8px;padding:10px}.cinematic-character-grid{grid-template-columns:repeat(auto-fill,minmax(165px,1fr))}}
+
+/* Asset Library v0.8 */
+.asset-library{width:100%;min-width:0}
+.asset-heading h1{font-size:34px;letter-spacing:-1px;margin:9px 0}
+.asset-heading .intro{margin:0 0 20px;font-size:13px}
+.asset-controls{display:flex;gap:12px;align-items:end;flex-wrap:wrap;margin:12px 0 18px}
+.asset-controls label{display:grid;gap:7px;font-size:12px;color:#a7b5c6;min-width:175px}
+.asset-controls .asset-search{flex:1;min-width:200px}
+.asset-controls input,.asset-controls select,.asset-uploadbar select{background:#18222d;color:#e7eef7;border:1px solid #354457;border-radius:9px;padding:11px 12px;font:inherit}
+.asset-controls input:focus-visible,.asset-controls select:focus-visible,.asset-uploadbar select:focus-visible{outline:2px solid #c2fc5a;outline-offset:1px}
+.asset-uploadbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;background:#151e27;border:1px solid #303e4d;border-radius:11px;padding:15px 18px;margin-bottom:18px}
+.asset-uploadbar>div:first-child{display:grid;gap:5px}
+.asset-uploadbar strong{font-size:14px}
+.asset-uploadbar span{font-size:11px;color:#98a8b9}
+.asset-upload{position:relative;cursor:pointer}
+.asset-upload input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.asset-upload.disabled{opacity:.5;cursor:not-allowed}
+.asset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:16px}
+.asset-card{background:#18232e;border:1px solid #303e4d;border-radius:12px;overflow:hidden;min-width:0}
+.asset-card:hover{border-color:#789f51}
+.asset-thumb{width:100%;aspect-ratio:4/3;padding:0;border:0;background:#26332d;display:block;overflow:hidden}
+.asset-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.asset-card-info{padding:14px;display:grid;gap:8px}
+.asset-card-info strong{font-size:14px;overflow-wrap:anywhere}
+.asset-card-info small{font-size:11px;color:#98a8b9}
+.asset-card-info .projects-actions{margin-top:4px}
+.asset-modal-backdrop{position:fixed;inset:0;z-index:150;background:#020609d9;display:flex;align-items:center;justify-content:center;padding:22px}
+.asset-editor{width:min(480px,95vw);max-height:90vh;overflow:auto;margin:0;background:#151e27}
+.asset-preview{width:min(980px,95vw);max-height:95vh;display:flex;flex-direction:column;gap:14px;background:#151e27;border:1px solid #394859;border-radius:12px;padding:18px}
+.asset-preview img{max-width:100%;max-height:calc(95vh - 110px);object-fit:contain;align-self:center}
+.asset-thumb:focus-visible,.asset-upload:focus-within{outline:2px solid #c2fc5a;outline-offset:2px}
+@media(max-width:900px){.asset-grid{grid-template-columns:repeat(auto-fill,minmax(170px,1fr))}.asset-uploadbar{align-items:flex-start}}

@@ -1,17 +1,27 @@
 import { useCallback, useEffect, useState, type ChangeEvent } from "react";
-import { ImagePlus, Trash2, RefreshCw } from "lucide-react";
+import { ImagePlus, Trash2, RefreshCw, X, Image as ImageIcon } from "lucide-react";
 import { deleteReference, imageUrl, listReferences, uploadReference, type CharacterReference } from "./characterReferencesApi";
 
 export default function CharacterReferences({ projectId, characterId }: { projectId: string; characterId: string }) {
   const [items, setItems] = useState<CharacterReference[]>([]);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [preview, setPreview] = useState<string | null>(null);
   const refresh = useCallback(async () => {
+    setLoading(true);
     try { setItems(await listReferences(projectId, characterId)); setError(""); }
     catch (e) { setError(e instanceof Error ? e.message : "Unable to load references"); }
+    finally { setLoading(false); }
   }, [projectId, characterId]);
   useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => { setPreview(null); }, [characterId, projectId]);
+  useEffect(() => {
+    if (!preview) return;
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape") setPreview(null); };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [preview]);
   async function onFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -33,25 +43,26 @@ export default function CharacterReferences({ projectId, characterId }: { projec
   return <div className="reference-library">
     <div className="reference-heading"><strong>Reference images ({items.length})</strong>
       <div className="projects-actions">
-        <button type="button" className="secondary-action" onClick={() => void refresh()} disabled={busy} title="Refresh images"><RefreshCw size={14}/></button>
+        <button type="button" className="secondary-action" onClick={() => void refresh()} disabled={busy || loading} title="Refresh images" aria-label="Refresh reference images"><RefreshCw size={14}/></button>
         <label className="secondary-action reference-upload"><ImagePlus size={15}/> {busy ? "Working…" : "Upload image"}
           <input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => void onFile(e)} disabled={busy} />
         </label>
       </div>
     </div>
     {error && <p className="project-error" role="alert">{error}</p>}
-    {items.length === 0 ? <p className="reference-empty">No reference images yet. Upload a test image to begin.</p> :
+    <p className="reference-guidance">PNG, JPEG or WebP · Up to 10 MB per image · Stored locally</p>
+    {loading ? <div className="reference-empty" role="status">Loading reference images…</div> : items.length === 0 ? <div className="reference-empty-state"><ImageIcon size={27}/><strong>No reference images yet</strong><span>Upload a reference image to establish the character’s visual identity.</span></div> :
       <div className="reference-grid">{items.map(item => <div className="reference-tile" key={item.id}>
-        <button type="button" className="reference-image-button" onClick={() => setPreview(imageUrl(projectId, characterId, item.id))} title="Preview image">
+        <button type="button" className="reference-image-button" onClick={() => setPreview(imageUrl(projectId, characterId, item.id))} title={`Preview ${item.original_name}`} aria-label={`Preview ${item.original_name}`}>
           <img src={imageUrl(projectId, characterId, item.id)} alt={item.original_name} loading="lazy"/>
         </button>
         <div className="reference-info"><span title={item.original_name}>{item.original_name}</span>
-          <button type="button" className="reference-delete" onClick={() => void remove(item)} disabled={busy} title="Delete image"><Trash2 size={14}/></button>
+          <button type="button" className="reference-delete" onClick={() => void remove(item)} disabled={busy} title={`Delete ${item.original_name}`} aria-label={`Delete ${item.original_name}`}><Trash2 size={14}/></button>
         </div>
       </div>)}</div>}
     {preview && <div className="reference-modal" role="dialog" aria-modal="true" aria-label="Reference image preview" onClick={() => setPreview(null)}>
       <div className="reference-modal-content" onClick={e => e.stopPropagation()}>
-        <button type="button" className="secondary-action" onClick={() => setPreview(null)}>Close preview</button>
+        <button type="button" className="secondary-action" onClick={() => setPreview(null)} aria-label="Close preview"><X size={16}/> Close preview</button>
         <img src={preview} alt="Selected character reference"/>
       </div>
     </div>}
