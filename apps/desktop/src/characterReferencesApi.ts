@@ -16,5 +16,5 @@ export async function uploadReference(projectId: string, characterId: string, fi
   return (await checked(await fetch(base(projectId, characterId), { method: "POST", headers: { "Content-Type": file.type, "X-Filename": encodeURIComponent(file.name) }, body: file }))).json();
 }
 export async function deleteReference(projectId: string, characterId: string, id: string): Promise<void> {
-  await checked(await fetch(imageUrl(projectId, characterId, id).replace(/\\/image$/, ""), { method: "DELETE" }));
+  await checked(await fetch(`${base(projectId, characterId)}/${encodeURIComponent(id)}`, { method: "DELETE" }));
 }
