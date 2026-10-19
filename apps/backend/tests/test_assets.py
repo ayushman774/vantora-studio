@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
-from app.database.models import Base, Project
+from app.database.models import Base, Project, Character
 from app.main import create_app
 from app.core.config import Settings
 from datetime import datetime, timezone
@@ -20,6 +20,9 @@ def test_asset_lifecycle(tmp_path: Path):
     now = datetime.now(timezone.utc)
     with Session(engine) as db:
         db.add(Project(id="project-1", name="Test", description="", project_type="anime", created_at=now, updated_at=now))
+        db.add(Character(id="character-1", project_id="project-1", name="Arin", role="lead", biography="", personality="", appearance="", continuity_notes="", created_at=now, updated_at=now))
+        db.add(Project(id="project-2", name="Other", description="", project_type="anime", created_at=now, updated_at=now))
+        db.add(Character(id="character-2", project_id="project-2", name="Mira", role="lead", biography="", personality="", appearance="", continuity_notes="", created_at=now, updated_at=now))
         db.commit()
     with TestClient(app) as client:
         app.state.engine.dispose()
@@ -32,5 +35,10 @@ def test_asset_lifecycle(tmp_path: Path):
         assert len(client.get(root).json()) == 1
         assert client.get(root + "/" + asset["id"] + "/image").content == PNG
         assert client.patch(root + "/" + asset["id"], json={"title": "Hero concept"}).json()["title"] == "Hero concept"
+        url = root + "/" + asset["id"]
+        assert client.patch(url, json={"character_id": "character-1"}).json()["character_id"] == "character-1"
+        assert client.patch(url, json={"character_id": "character-2"}).status_code == 422
+        assert client.patch(url, json={"character_id": "missing"}).status_code == 422
+        assert client.patch(url, json={"character_id": None}).json()["character_id"] is None
         assert client.delete(root + "/" + asset["id"]).status_code == 204
         assert client.get(root).json() == []
