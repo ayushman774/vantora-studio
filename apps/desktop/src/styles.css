@@ -53,3 +53,34 @@ body,.shell,.main{background:#0b0f14}
 .secondary-action{background:#202a35;border-color:#344253;color:#e3eaf2}
 .nav-item:focus-visible,button:focus-visible{outline:2px solid #c2fc5a;outline-offset:2px}
 @media(max-width:1000px){.sidebar{width:198px}.content{padding:25px 22px}}
+
+/* Cinematic project workspace — phase 2 */
+.projects-view{width:100%;min-width:0}
+.projects-heading{margin-bottom:22px;gap:18px}
+.projects-heading h1{font-size:clamp(26px,3vw,36px);margin:7px 0}
+.projects-heading .intro{margin:0;max-width:720px}
+.cinematic-workspace{width:100%;min-width:0}
+.cinematic-project-header{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;padding:22px 24px;background:#151b23;border:1px solid #2b3745;border-radius:12px 12px 0 0}
+.cinematic-project-header h2{font-size:24px;margin:8px 0 6px;line-height:1.3}
+.cinematic-project-header p{font-size:13px;line-height:1.6;color:#aab6c6;margin:0;max-width:850px}
+.cinematic-project-header .projects-actions{flex-shrink:0}
+.project-menu{position:relative}
+.project-menu summary{display:flex;align-items:center;justify-content:center;cursor:pointer;list-style:none;width:40px;height:40px;border:1px solid #344253;border-radius:8px;background:#202a35}
+.project-menu summary::-webkit-details-marker{display:none}
+.project-menu .danger-action{position:absolute;right:0;top:46px;z-index:5;white-space:nowrap;box-shadow:0 8px 24px #0008}
+.workspace-tabs{display:flex;gap:4px;overflow-x:auto;background:#151b23;border:1px solid #2b3745;border-top:0;padding:0 16px}
+.workspace-tab{display:flex;align-items:center;gap:9px;padding:16px 18px;background:transparent;border:0;border-bottom:2px solid transparent;color:#9daabb;white-space:nowrap;font-size:13px}
+.workspace-tab:hover{color:#fff;background:#1e2832}
+.workspace-tab.active{border-bottom-color:#c2fc5a;color:#c2fc5a;font-weight:600}
+.workspace-tab-body{min-height:320px;padding:25px;background:#10161d;border:1px solid #2b3745;border-top:0;border-radius:0 0 12px 12px}
+.workspace-summary{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.workspace-summary-card{background:#19222c;border:1px solid #2c3948;border-radius:11px;padding:22px;min-width:0}
+.workspace-summary-card>span{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:#c2fc5a}
+.workspace-summary-card h3{font-size:19px;margin:12px 0}
+.workspace-summary-card p{font-size:13px;color:#a9b6c5;line-height:1.6}
+.workspace-summary-card button{margin-top:10px}
+.workspace-summary-meta{grid-column:1/-1;font-size:12px;color:#8797a9;padding:5px}
+.workspace-tab-body .production-workspace,.workspace-tab-body .character-library{margin-top:0;padding-top:0;border-top:0}
+.workspace-tab-body .project-toolbar{margin-bottom:22px}
+.workspace-tab-body .project-empty{background:#151e27}
+@media(max-width:900px){.cinematic-project-header{flex-direction:column}.workspace-summary{grid-template-columns:1fr}.workspace-tab-body{padding:16px}}
