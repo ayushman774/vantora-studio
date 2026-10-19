@@ -113,3 +113,31 @@ body,.shell,.main{background:#0b0f14}
 .character-info-panel p{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7;color:#d0d9e5;font-size:13px}
 .character-detail-main .reference-library{margin-top:18px;border-top:0;padding-top:0}
 @media(max-width:900px){.character-detail-layout{grid-template-columns:1fr}.character-detail-layout>.character-cover{max-width:330px}.character-detail-header{flex-wrap:wrap}}
+
+/* Cinematic Studio phase 4 — production two-panel workspace */
+.cinematic-production-layout{display:grid;grid-template-columns:255px minmax(0,1fr);gap:16px;align-items:start}
+.cinematic-season-list,.cinematic-episode-panel{background:#151e27;border:1px solid #303e4d;border-radius:11px;min-width:0;overflow:hidden}
+.cinematic-panel-label{display:flex;align-items:center;gap:9px;color:#d8e2ee;font-weight:600;font-size:13px;padding:19px 16px;border-bottom:1px solid #303e4d}
+.cinematic-panel-label span{margin-left:auto;color:#9aabba}
+.cinematic-season-item{display:flex;align-items:center;gap:12px;width:100%;padding:14px 15px;background:transparent;color:#d9e2ec;border:0;border-left:3px solid transparent;text-align:left}
+.cinematic-season-item:hover{background:#202c38}
+.cinematic-season-item.active{background:#263529;border-left-color:#c2fc5a}
+.cinematic-season-index{display:grid;place-items:center;flex-shrink:0;width:37px;height:37px;border-radius:8px;background:#2b3945;color:#c2fc5a;font-size:12px;font-weight:700}
+.cinematic-season-name{display:grid;gap:5px;min-width:0}
+.cinematic-season-name strong{font-size:13px;overflow-wrap:anywhere}
+.cinematic-season-name small{font-size:11px;color:#9cabbc}
+.cinematic-episode-header{display:flex;justify-content:space-between;align-items:flex-start;gap:15px;padding:23px;border-bottom:1px solid #303e4d}
+.cinematic-episode-header h3{font-size:23px;margin:7px 0}
+.cinematic-episode-header p{font-size:12px;color:#aebccc;line-height:1.6;margin:7px 0 0;white-space:pre-wrap}
+.cinematic-episode-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 22px}
+.cinematic-episode-toolbar strong{font-size:14px}
+.cinematic-episode-toolbar strong span{font-size:12px;color:#a0aebd;margin-left:5px}
+.cinematic-episode-list{display:grid;gap:9px;padding:0 20px 20px}
+.cinematic-episode-row{display:flex;align-items:center;gap:12px;background:#1a2631;border:1px solid #303e4d;border-radius:9px;padding:13px}
+.cinematic-episode-number{display:grid;place-items:center;flex-shrink:0;width:37px;height:37px;border-radius:8px;background:#2b3945;color:#c2fc5a;font-size:13px;font-weight:700}
+.cinematic-episode-empty{padding:32px;text-align:center;color:#a3b2c2;font-size:13px;border:1px dashed #3a4858;border-radius:9px}
+.workspace-editor-backdrop{position:fixed;inset:0;z-index:100;background:#03070bc9;display:flex;justify-content:flex-end;align-items:stretch}
+.cinematic-editor{width:min(480px,94vw);max-width:none;height:100%;overflow-y:auto;margin:0;border-radius:0;border:0;border-left:1px solid #3a4858;padding:30px;background:#151e27;align-content:start}
+.cinematic-editor .project-form-heading{align-items:flex-start}
+.cinematic-editor .project-form-heading h2{font-size:22px}
+@media(max-width:900px){.cinematic-production-layout{grid-template-columns:1fr}.cinematic-season-list{display:flex;flex-wrap:wrap}.cinematic-panel-label{width:100%}.cinematic-season-item{width:auto;flex:1;min-width:170px}}
