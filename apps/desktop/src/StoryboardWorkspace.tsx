@@ -26,7 +26,14 @@ export default function StoryboardWorkspace({projectId,seasonId,episodeId,sceneI
   if(!editor.title.trim()||!Number.isInteger(editor.number)||editor.number<1||!Number.isInteger(editor.hold_frames)||editor.hold_frames<1||editor.hold_frames>100000){setError("Enter a title and valid positive frame numbers.");return;}
   setBusy(true);setError("");
   try{
-   const {id,...data}=editor;
+   // Never send server-owned frame metadata back to the strict API.
+   const data:StoryboardInput={
+    number:editor.number,title:editor.title,description:editor.description,
+    composition:editor.composition,camera_notes:editor.camera_notes,
+    continuity_notes:editor.continuity_notes,hold_frames:editor.hold_frames,
+    status:editor.status,asset_id:editor.asset_id
+   };
+   const id=editor.id;
    if(id)await updateStoryboardFrame(projectId,seasonId,episodeId,sceneId,shotId,id,data);
    else await createStoryboardFrame(projectId,seasonId,episodeId,sceneId,shotId,data);
    setEditor(null);await refresh();
