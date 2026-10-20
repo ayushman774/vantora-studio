@@ -1,0 +1,45 @@
+"""Storyboard API lifecycle, validation, ordering and ancestry isolation."""
+from datetime import datetime, timezone
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
+from sqlalchemy.pool import StaticPool
+from app.core.config import Settings
+from app.database.models import Base, Project, Season, Episode, Scene, Shot
+from app.main import create_app
+
+def test_storyboard_frame_lifecycle_and_isolation(tmp_path):
+    app = create_app(Settings(data_root=tmp_path))
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(engine)
+    now = datetime.now(timezone.utc)
+    with Session(engine) as db:
+        for p in ("p1", "p2"):
+            db.add(Project(id=p, name="QA", description="", project_type="anime", created_at=now, updated_at=now))
+            db.add(Season(id="s"+p, project_id=p, number=1, title="Season", description="", created_at=now, updated_at=now))
+            db.add(Episode(id="e"+p, season_id="s"+p, number=1, title="Episode", synopsis="", created_at=now, updated_at=now))
+            db.add(Scene(id="c"+p, episode_id="e"+p, number=1, title="Scene", description="", location="", time_of_day="", status="draft", created_at=now, updated_at=now))
+            db.add(Shot(id="h"+p, scene_id="c"+p, number=1, title="Shot", description="", camera="", action="", duration_frames=72, status="draft", created_at=now, updated_at=now))
+        db.commit()
+    with TestClient(app) as client:
+        app.state.engine.dispose()
+        app.state.engine = engine
+        root = "/api/v1/projects/p1/seasons/sp1/episodes/ep1/scenes/cp1/shots/hp1/storyboard-frames"
+        foreign = "/api/v1/projects/p2/seasons/sp2/episodes/ep2/scenes/cp2/shots/hp2/storyboard-frames"
+        response = client.post(root, json={"number": 1, "title": "  Establishing frame  ", "composition": "Wide city", "hold_frames": 48})
+        assert response.status_code == 201, response.text
+        frame = response.json()
+        assert frame["title"] == "Establishing frame"
+        assert frame["status"] == "draft"
+        fid = frame["id"]
+        assert client.post(root, json={"number": 1, "title": "Duplicate"}).status_code == 409
+        assert client.post(root, json={"number": 2, "title": "Invalid", "hold_frames": 0}).status_code == 422
+        assert client.post(root, json={"number": 2, "title": " ", "status": "planned"}).status_code == 422
+        assert client.patch(root+"/"+fid, json={"status": "unknown"}).status_code == 422
+        assert client.patch(root+"/"+fid, json={"status": "planned", "continuity_notes": "Same coat"}).json()["status"] == "planned"
+        assert client.patch(root+"/"+fid, json={"title": None}).status_code == 422
+        assert len(client.get(root).json()) == 1
+        assert client.get(foreign+"/"+fid).status_code == 404
+        assert client.get(root.replace("/p1/", "/p2/")).status_code == 404
+        assert client.delete(root+"/"+fid).status_code == 204
+        assert client.get(root).json() == []
