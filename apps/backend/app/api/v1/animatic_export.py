@@ -124,7 +124,7 @@ def render_mp4(sources: list[tuple[Path | None, int, str, int, str, str]], outpu
                     ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
                     "-i", str(segments[-1]),
                     "-vf", f"select=eq(n\\,{previous_duration - 1})",
-                    "-vsync", "vfr", "-frames:v", "1", str(still),
+                    "-frames:v", "1", "-update", "1", str(still),
                 ], check=True, capture_output=True, timeout=600)
                 blended = workspace / f"blended-{index:04d}.mp4"
                 length = dissolve_frames(duration)
