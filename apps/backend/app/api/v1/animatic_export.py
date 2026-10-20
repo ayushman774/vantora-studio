@@ -1,7 +1,4 @@
-"""Local FFmpeg MP4 renderer: initial cut-only, static-frame export pipeline.
-
-Advanced camera and blend rendering is deliberately rejected until implemented.
-"""
+"""Local FFmpeg MP4 renderer with per-frame cinematic camera motion and cuts."""
 from pathlib import Path
 import shutil
 import subprocess
@@ -24,24 +21,64 @@ FPS = 24
 MAX_FRAMES = FPS * 60 * 10  # ten minutes, bounded synchronous export
 
 
-def preflight(frames: list[StoryboardFrame], assets: dict[str, Asset], folder: Path) -> list[tuple[Path | None, int]]:
+def preflight(frames: list[StoryboardFrame], assets: dict[str, Asset], folder: Path) -> list[tuple[Path | None, int, str, int, str]]:
     if not frames:
         raise HTTPException(422, "Add storyboard frames before exporting.")
     if sum(frame.hold_frames for frame in frames) > MAX_FRAMES:
         raise HTTPException(422, "Export exceeds the ten-minute limit.")
     sources = []
     for frame in frames:
-        if frame.camera_motion != "none" or frame.transition != "cut":
-            raise HTTPException(422, "This first export version supports static frames with cut transitions only. Motion and blends are coming next.")
+        if frame.transition != "cut":
+            raise HTTPException(422, "MP4 export currently supports cut transitions only. Fade and cross-dissolve are coming next.")
         asset = assets.get(frame.asset_id or "")
         if asset is None:
-            sources.append((None, frame.hold_frames))
+            sources.append((None, frame.hold_frames, frame.camera_motion, frame.motion_intensity, frame.motion_easing))
             continue
         path = folder / asset.filename
         if not path.is_file():
             raise HTTPException(422, f"Frame {frame.number} image is missing on disk.")
-        sources.append((path, frame.hold_frames))
+        sources.append((path, frame.hold_frames, frame.camera_motion, frame.motion_intensity, frame.motion_easing))
     return sources
+
+
+def camera_filter(duration: int, motion: str, intensity: int, easing: str) -> str:
+    """FFmpeg zoompan, matching the preview's eased 12% motion range."""
+    if motion == "none" or intensity == 0 or duration <= 1:
+        return ("scale=1920:1080:force_original_aspect_ratio=decrease,"
+                "pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p")
+    if motion not in {"zoom-in", "zoom-out", "pan-left", "pan-right"}:
+        raise HTTPException(422, "Unsupported camera motion.")
+    if easing not in {"linear", "ease-in", "ease-out", "ease-in-out"}:
+        raise HTTPException(422, "Unsupported motion easing.")
+    if not 0 <= intensity <= 200:
+        raise HTTPException(422, "Motion intensity must be between 0 and 200.")
+    p = f"(on/{duration - 1})"
+    eased = {
+        "linear": p,
+        "ease-in": f"({p}*{p})",
+        "ease-out": f"(1-(1-{p})*(1-{p}))",
+        "ease-in-out": f"({p}*{p}*(3-2*{p}))",
+    }[easing]
+    amount = 0.12 * intensity / 100
+    if motion == "zoom-in":
+        zoom = f"(1+{amount:.6f}*{eased})"
+    elif motion == "zoom-out":
+        zoom = f"(1+{amount:.6f}*(1-{eased}))"
+    else:
+        zoom = f"{1 + amount:.6f}"
+    # The preview pans from one edge to the other over a slightly enlarged image.
+    if motion == "pan-left":
+        x = f"((iw-iw/zoom)*(1-{eased}))"
+    elif motion == "pan-right":
+        x = f"((iw-iw/zoom)*{eased})"
+    else:
+        x = "(iw-iw/zoom)/2"
+    return (
+        "scale=1920:1080:force_original_aspect_ratio=increase,"
+        "crop=1920:1080,scale=2304:1296,"
+        f"zoompan=z='{zoom}':x='{x}':y='(ih-ih/zoom)/2':"
+        f"d={duration}:s=1920x1080:fps={FPS},setsar=1,format=yuv420p"
+    )
 
 
 def render_mp4(sources: list[tuple[Path | None, int]], output: Path, ffmpeg: str) -> None:
@@ -49,7 +86,7 @@ def render_mp4(sources: list[tuple[Path | None, int]], output: Path, ffmpeg: str
     with tempfile.TemporaryDirectory(prefix="vantora-render-") as temp:
         workspace = Path(temp)
         segments = []
-        for index, (source, duration) in enumerate(sources):
+        for index, (source, duration, motion, intensity, easing) in enumerate(sources):
             segment = workspace / f"part-{index:04d}.mp4"
             input_args = (
                 ["-f", "lavfi", "-i", f"color=c=0x161a20:s=1920x1080:r={FPS}"]
@@ -59,8 +96,7 @@ def render_mp4(sources: list[tuple[Path | None, int]], output: Path, ffmpeg: str
             cmd = [
                 ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
                 *input_args,
-                "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,"
-                       "pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p",
+                "-vf", camera_filter(duration, motion, intensity, easing) if source else camera_filter(duration, "none", 0, "linear"),
                 "-frames:v", str(duration), "-an", "-c:v", "libx264",
                 "-preset", "veryfast", "-crf", "20", "-r", str(FPS),
                 "-movflags", "+faststart", str(segment),
