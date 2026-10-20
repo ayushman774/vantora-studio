@@ -7,7 +7,7 @@ import type {StoryboardFrame,StoryboardInput} from "./storyboardApi";
 import {listStoryboardFrames,createStoryboardFrame,updateStoryboardFrame,deleteStoryboardFrame} from "./storyboardApi";
 
 const statuses:ProductionStatus[]=["draft","planned","in_progress","review","approved"];
-const blank=(number:number):StoryboardInput=>({number,title:"",description:"",composition:"",camera_notes:"",continuity_notes:"",hold_frames:24,status:"draft",asset_id:null});
+const blank=(number:number):StoryboardInput=>({number,title:"",description:"",composition:"",camera_notes:"",continuity_notes:"",hold_frames:24,camera_motion:"none",transition:"cut",status:"draft",asset_id:null});
 export default function StoryboardWorkspace({projectId,seasonId,episodeId,sceneId,shotId,shotTitle,onBack}:{projectId:string;seasonId:string;episodeId:string;sceneId:string;shotId:string;shotTitle:string;onBack:()=>void}){
  const [frames,setFrames]=useState<StoryboardFrame[]>([]);
  const [assets,setAssets]=useState<Asset[]>([]);
@@ -31,7 +31,7 @@ export default function StoryboardWorkspace({projectId,seasonId,episodeId,sceneI
    const data:StoryboardInput={
     number:editor.number,title:editor.title,description:editor.description,
     composition:editor.composition,camera_notes:editor.camera_notes,
-    continuity_notes:editor.continuity_notes,hold_frames:editor.hold_frames,
+    continuity_notes:editor.continuity_notes,hold_frames:editor.hold_frames,camera_motion:editor.camera_motion,transition:editor.transition,
     status:editor.status,asset_id:editor.asset_id
    };
    const id=editor.id;
@@ -62,6 +62,8 @@ export default function StoryboardWorkspace({projectId,seasonId,episodeId,sceneI
    <label>Camera notes<textarea rows={3} maxLength={5000} value={editor.camera_notes} onChange={e=>setEditor({...editor,camera_notes:e.target.value})}/></label>
    <label>Continuity notes<textarea rows={3} maxLength={5000} value={editor.continuity_notes} onChange={e=>setEditor({...editor,continuity_notes:e.target.value})}/></label>
    <label>Hold duration (frames)<input type="number" min={1} max={100000} step={1} required value={editor.hold_frames} onChange={e=>setEditor({...editor,hold_frames:Number(e.target.value)})}/></label>
+   <label>Camera motion<select value={editor.camera_motion} onChange={e=>setEditor({...editor,camera_motion:e.target.value as StoryboardInput["camera_motion"]})}><option value="none">Static</option><option value="zoom-in">Slow zoom in</option><option value="zoom-out">Slow zoom out</option><option value="pan-left">Pan left</option><option value="pan-right">Pan right</option></select></label>
+   <label>Transition<select value={editor.transition} onChange={e=>setEditor({...editor,transition:e.target.value as StoryboardInput["transition"]})}><option value="cut">Cut</option><option value="fade">Fade in / out</option></select></label>
    <label>Visual reference<select value={editor.asset_id??""} onChange={e=>setEditor({...editor,asset_id:e.target.value||null})}><option value="">No image attached</option>{assets.map(asset=><option key={asset.id} value={asset.id}>{asset.title} ({asset.category})</option>)}</select></label>
    <label>Upload new image (PNG, JPEG, WebP, max 10 MB)<input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={async e=>{const file=e.target.files?.[0];if(!file)return;if(!["image/png","image/jpeg","image/webp"].includes(file.type)||file.size>10*1024*1024){setError("Choose a PNG, JPEG or WebP image up to 10 MB.");e.target.value="";return;}setBusy(true);setError("");try{const asset=await uploadAsset(projectId,file,"concept");setAssets(previous=>[...previous,asset]);setEditor(previous=>previous?{...previous,asset_id:asset.id}:previous);}catch(err){setError(err instanceof Error?err.message:"Image upload failed");}finally{setBusy(false);e.target.value="";}}}/></label>
    <label>Review status<select value={editor.status} onChange={e=>setEditor({...editor,status:e.target.value as ProductionStatus})}>{statuses.map(s=><option key={s} value={s}>{s.replaceAll("_"," ")}</option>)}</select></label>
