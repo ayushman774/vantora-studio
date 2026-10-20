@@ -1,4 +1,5 @@
 """Local FFmpeg MP4 renderer with per-frame cinematic camera motion and transitions."""
+import logging
 from pathlib import Path
 import shutil
 import subprocess
@@ -17,6 +18,7 @@ router = APIRouter(
     prefix="/projects/{project_id}/seasons/{season_id}/episodes/{episode_id}/scenes/{scene_id}/shots/{shot_id}",
     tags=["Animatic Export"],
 )
+logger = logging.getLogger(__name__)
 FPS = 24
 MAX_FRAMES = FPS * 60 * 10  # ten minutes, bounded synchronous export
 
@@ -166,7 +168,10 @@ def export_animatic(project_id: str, season_id: str, episode_id: str, scene_id: 
     output = exports / f"animatic-{uuid4().hex}.mp4"
     try:
         render_mp4(sources, output, ffmpeg)
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError):
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
         output.unlink(missing_ok=True)
-        raise HTTPException(500, "Local FFmpeg export failed. Check image files and FFmpeg installation.")
+        stderr = getattr(exc, "stderr", b"") or b""
+        detail = stderr.decode("utf-8", errors="replace")[-3000:] if isinstance(stderr, bytes) else str(stderr)[-3000:]
+        logger.error("FFmpeg animatic export failed: %s %s", type(exc).__name__, detail)
+        raise HTTPException(500, "Local FFmpeg export failed. See backend terminal for FFmpeg details.") from exc
     return FileResponse(output, media_type="video/mp4", filename=f"vantora-animatic-{shot_id[:8]}.mp4", headers={"Cache-Control": "no-store"})
