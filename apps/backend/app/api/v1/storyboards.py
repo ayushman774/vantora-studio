@@ -11,6 +11,9 @@ from sqlalchemy.orm import Session
 from app.api.v1.scenes import scoped, shot_or_404, STATUSES
 from app.database.models import StoryboardFrame, Asset
 
+MOTIONS = {"none", "zoom-in", "zoom-out", "pan-left", "pan-right"}
+TRANSITIONS = {"cut", "fade"}
+
 router = APIRouter(
     prefix="/projects/{project_id}/seasons/{season_id}/episodes/{episode_id}/scenes/{scene_id}/shots/{shot_id}",
     tags=["Storyboards"],
@@ -25,6 +28,8 @@ class FrameCreate(BaseModel):
     camera_notes: str = Field(default="", max_length=5000)
     continuity_notes: str = Field(default="", max_length=5000)
     hold_frames: int = Field(default=24, ge=1, le=100000)
+    camera_motion: str = "none"
+    transition: str = "cut"
     status: str = "draft"
     asset_id: str | None = None
 
@@ -37,6 +42,8 @@ class FrameUpdate(BaseModel):
     camera_notes: str | None = Field(default=None, max_length=5000)
     continuity_notes: str | None = Field(default=None, max_length=5000)
     hold_frames: int | None = Field(default=None, ge=1, le=100000)
+    camera_motion: str | None = None
+    transition: str | None = None
     status: str | None = None
     asset_id: str | None = None
 
@@ -48,6 +55,10 @@ class FrameOut(FrameCreate):
     updated_at: datetime
 
 def validate(data: dict) -> dict:
+    if "camera_motion" in data and data["camera_motion"] not in MOTIONS:
+        raise HTTPException(422, "Invalid camera motion")
+    if "transition" in data and data["transition"] not in TRANSITIONS:
+        raise HTTPException(422, "Invalid storyboard transition")
     if "title" in data:
         data["title"] = data["title"].strip()
         if not data["title"]:

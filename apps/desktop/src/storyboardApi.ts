@@ -1,6 +1,8 @@
 import type {ProductionStatus} from "./sceneTypes";
-export type StoryboardFrame={id:string;shot_id:string;asset_id:string|null;number:number;title:string;description:string;composition:string;camera_notes:string;continuity_notes:string;hold_frames:number;status:ProductionStatus;created_at:string;updated_at:string};
-export type StoryboardInput=Pick<StoryboardFrame,"number"|"title"|"description"|"composition"|"camera_notes"|"continuity_notes"|"hold_frames"|"status"|"asset_id">;
+export type CameraMotion="none"|"zoom-in"|"zoom-out"|"pan-left"|"pan-right";
+export type FrameTransition="cut"|"fade";
+export type StoryboardFrame={camera_motion:CameraMotion;transition:FrameTransition;id:string;shot_id:string;asset_id:string|null;number:number;title:string;description:string;composition:string;camera_notes:string;continuity_notes:string;hold_frames:number;status:ProductionStatus;created_at:string;updated_at:string};
+export type StoryboardInput=Pick<StoryboardFrame,"number"|"title"|"description"|"composition"|"camera_notes"|"continuity_notes"|"hold_frames"|"camera_motion"|"transition"|"status"|"asset_id">;
 const root="http://127.0.0.1:8000/api/v1/projects";
 const path=(p:string,s:string,e:string,c:string,h:string)=>root+"/"+encodeURIComponent(p)+"/seasons/"+encodeURIComponent(s)+"/episodes/"+encodeURIComponent(e)+"/scenes/"+encodeURIComponent(c)+"/shots/"+encodeURIComponent(h)+"/storyboard-frames";
 async function request<T>(url:string,method="GET",data?:object):Promise<T>{
