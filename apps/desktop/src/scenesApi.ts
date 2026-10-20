@@ -1,6 +1,5 @@
 import type { Scene, Shot } from "./sceneTypes";
 const root = "http://127.0.0.1:8000/api/v1/projects";
-const epPath = (p: string, s: string, e: string) => [p,s,e].map(encodeURIComponent).join("/");
 const base = (p:string,s:string,e:string) => root+"/"+encodeURIComponent(p)+"/seasons/"+encodeURIComponent(s)+"/episodes/"+encodeURIComponent(e)+"/scenes";
 async function call<T>(url:string, method="GET", data?:object):Promise<T>{
   let response:Response;
