@@ -257,3 +257,29 @@ body,.shell,.main{background:#0b0f14}
 .storyboard-card-actions .secondary-action{flex:1;justify-content:center}
 .storyboard-workspace button:focus-visible,.storyboard-details summary:focus-visible{outline:2px solid #c2fc5a;outline-offset:3px}
 @media(max-width:760px){.storyboard-overview{gap:18px}.storyboard-overview>p{margin-left:0;width:100%}}
+
+
+/* v0.11 storyboard timeline: single horizontal row, independent card heights */
+.storyboard-workspace .storyboard-grid{
+ display:flex;
+ flex-wrap:nowrap;
+ align-items:flex-start;
+ gap:16px;
+ overflow-x:auto;
+ overflow-y:hidden;
+ padding:4px 3px 18px;
+ scroll-snap-type:x proximity;
+ scrollbar-width:thin;
+ scrollbar-color:#526575 #151f29;
+}
+.storyboard-workspace .storyboard-card{
+ flex:0 0 clamp(265px,26vw,330px);
+ width:clamp(265px,26vw,330px);
+ scroll-snap-align:start;
+}
+.storyboard-workspace .storyboard-grid::-webkit-scrollbar{height:9px}
+.storyboard-workspace .storyboard-grid::-webkit-scrollbar-thumb{background:#526575;border-radius:20px}
+.storyboard-workspace .storyboard-grid::-webkit-scrollbar-track{background:#151f29;border-radius:20px}
+@media(max-width:640px){
+ .storyboard-workspace .storyboard-card{flex-basis:min(82vw,330px);width:min(82vw,330px)}
+}
