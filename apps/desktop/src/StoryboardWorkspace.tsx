@@ -1,5 +1,5 @@
 import {useCallback,useEffect,useState,type FormEvent} from "react";
-import {ArrowLeft,Plus,Pencil,Trash2,RefreshCw,PanelsTopLeft} from "lucide-react";
+import {ArrowLeft,Plus,Pencil,Trash2,RefreshCw,PanelsTopLeft,Clock3,ChevronDown,Film} from "lucide-react";
 import type {ProductionStatus} from "./sceneTypes";
 import type {StoryboardFrame,StoryboardInput} from "./storyboardApi";
 import {listStoryboardFrames,createStoryboardFrame,updateStoryboardFrame,deleteStoryboardFrame} from "./storyboardApi";
@@ -40,7 +40,7 @@ export default function StoryboardWorkspace({projectId,seasonId,episodeId,sceneI
  }
  return <section className="storyboard-workspace">
   <div className="project-toolbar"><div><button className="secondary-action" onClick={onBack}><ArrowLeft size={15}/> Back to shots</button><div className="eyebrow" style={{marginTop:16}}>STORYBOARD / {shotTitle}</div><h2>Storyboard Frames</h2></div><div className="projects-actions"><button className="secondary-action" disabled={busy||loading} onClick={()=>void refresh()}><RefreshCw size={15}/> Refresh</button><button className="primary-action" onClick={()=>{setError("");setEditor(blank(Math.max(0,...frames.map(f=>f.number))+1));}}><Plus size={15}/> New frame</button></div></div>
-  <p className="storyboard-help">Plan each visual beat of this shot. Frames are ordered by number. Image attachment and AI-assisted generation are planned for a later phase.</p>
+  <div className="storyboard-overview"><div><span>SHOT STORYBOARD</span><strong>{frames.length} <small>frames</small></strong></div><div><span>TOTAL HOLD</span><strong>{frames.reduce((sum,frame)=>sum+frame.hold_frames,0)} <small>frames</small></strong></div><p>Sequence planning · Frames ordered by number · Visual attachments coming later</p></div>
   {error&&<div className="project-error" role="alert">{error}</div>}
   {editor&&<div className="workspace-editor-backdrop"><form className="project-form workspace-editor cinematic-editor" onSubmit={e=>void save(e)}>
    <div className="project-form-heading"><h2>{editor.id?"Edit":"New"} storyboard frame</h2><button type="button" className="secondary-action" disabled={busy} onClick={()=>setEditor(null)}>Cancel</button></div>
@@ -55,7 +55,14 @@ export default function StoryboardWorkspace({projectId,seasonId,episodeId,sceneI
    <button className="primary-action" disabled={busy} type="submit">{busy?"Saving…":"Save frame"}</button>
   </form></div>}
   {loading?<div className="project-empty">Loading storyboard…</div>:frames.length===0?<div className="project-empty"><PanelsTopLeft size={32}/><h2>No storyboard frames yet</h2><p>Add your first frame to establish the visual composition for this shot.</p><button className="primary-action" onClick={()=>setEditor(blank(1))}><Plus size={15}/> Create first frame</button></div>:<div className="storyboard-grid">
-   {frames.map(frame=><article className="storyboard-card" key={frame.id}><div className="storyboard-frame-preview"><PanelsTopLeft size={34}/><span>FRAME {String(frame.number).padStart(2,"0")}</span><small>Visual reference not attached</small></div><div className="storyboard-card-body"><div className="storyboard-card-head"><strong>{frame.title}</strong><span>{frame.status.replaceAll("_"," ")}</span></div><div className="storyboard-frame-meta">{frame.hold_frames} hold frames</div>{frame.description&&<p>{frame.description}</p>}{frame.composition&&<p><b>Composition:</b> {frame.composition}</p>}{frame.camera_notes&&<p><b>Camera:</b> {frame.camera_notes}</p>}{frame.continuity_notes&&<p><b>Continuity:</b> {frame.continuity_notes}</p>}<div className="projects-actions"><button className="secondary-action" onClick={()=>{setError("");setEditor({...frame});}}><Pencil size={14}/> Edit</button><button className="danger-action" disabled={busy} onClick={()=>void remove(frame)}><Trash2 size={14}/> Delete</button></div></div></article>)}
+   {frames.map(frame=><article className="storyboard-card" key={frame.id}>
+    <div className="storyboard-frame-preview"><div className="storyboard-preview-top"><span>FRAME {String(frame.number).padStart(2,"0")}</span><span className={"storyboard-status storyboard-status-"+frame.status}>{frame.status.replaceAll("_"," ")}</span></div><div className="storyboard-preview-center"><Film size={30} strokeWidth={1.3}/><span>Visual pending</span></div><div className="storyboard-preview-bottom"><Clock3 size={13}/>{frame.hold_frames} frames</div></div>
+    <div className="storyboard-card-body"><h3 title={frame.title}>{frame.title}</h3><p className="storyboard-summary">{frame.description||"No visual description added yet."}</p>
+     <details className="storyboard-details"><summary>Production notes <ChevronDown size={15}/></summary><div className="storyboard-notes">
+      <p><b>Composition</b>{frame.composition||"Not specified"}</p><p><b>Camera</b>{frame.camera_notes||"Not specified"}</p><p><b>Continuity</b>{frame.continuity_notes||"Not specified"}</p>
+     </div></details>
+     <div className="storyboard-card-actions"><button className="secondary-action" onClick={()=>{setError("");setEditor({...frame});}}><Pencil size={14}/> Edit frame</button><button className="danger-action icon-action" aria-label={"Delete frame "+frame.number} title="Delete frame" disabled={busy} onClick={()=>void remove(frame)}><Trash2 size={15}/></button></div>
+    </div></article>)}
   </div>}
  </section>;
 }
