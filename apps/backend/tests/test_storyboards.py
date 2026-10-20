@@ -35,6 +35,15 @@ def test_storyboard_frame_lifecycle_and_isolation(tmp_path):
         assert frame["status"] == "draft"
         fid = frame["id"]
         assert frame["asset_id"] is None
+        assert frame["camera_motion"] == "none"
+        assert frame["transition"] == "cut"
+        motion = client.patch(root+"/"+fid,json={"camera_motion":"zoom-in","transition":"fade"})
+        assert motion.status_code == 200, motion.text
+        assert motion.json()["camera_motion"] == "zoom-in"
+        assert motion.json()["transition"] == "fade"
+        assert client.get(root+"/"+fid).json()["camera_motion"] == "zoom-in"
+        assert client.patch(root+"/"+fid,json={"camera_motion":"warp"}).status_code == 422
+        assert client.patch(root+"/"+fid,json={"transition":"dissolve"}).status_code == 422
         linked = client.patch(root+"/"+fid,json={"asset_id":"asset-p1"})
         assert linked.status_code == 200, linked.text
         assert linked.json()["asset_id"] == "asset-p1"
