@@ -1,4 +1,4 @@
-"""Local FFmpeg MP4 renderer with per-frame cinematic camera motion and cuts."""
+"""Local FFmpeg MP4 renderer with per-frame cinematic camera motion and transitions."""
 from pathlib import Path
 import shutil
 import subprocess
@@ -21,23 +21,23 @@ FPS = 24
 MAX_FRAMES = FPS * 60 * 10  # ten minutes, bounded synchronous export
 
 
-def preflight(frames: list[StoryboardFrame], assets: dict[str, Asset], folder: Path) -> list[tuple[Path | None, int, str, int, str]]:
+def preflight(frames: list[StoryboardFrame], assets: dict[str, Asset], folder: Path) -> list[tuple[Path | None, int, str, int, str, str]]:
     if not frames:
         raise HTTPException(422, "Add storyboard frames before exporting.")
     if sum(frame.hold_frames for frame in frames) > MAX_FRAMES:
         raise HTTPException(422, "Export exceeds the ten-minute limit.")
     sources = []
     for frame in frames:
-        if frame.transition != "cut":
-            raise HTTPException(422, "MP4 export currently supports cut transitions only. Fade and cross-dissolve are coming next.")
+        if frame.transition not in {"cut", "fade", "cross-dissolve"}:
+            raise HTTPException(422, "Unsupported transition.")
         asset = assets.get(frame.asset_id or "")
         if asset is None:
-            sources.append((None, frame.hold_frames, frame.camera_motion, frame.motion_intensity, frame.motion_easing))
+            sources.append((None, frame.hold_frames, frame.camera_motion, frame.motion_intensity, frame.motion_easing, frame.transition))
             continue
         path = folder / asset.filename
         if not path.is_file():
             raise HTTPException(422, f"Frame {frame.number} image is missing on disk.")
-        sources.append((path, frame.hold_frames, frame.camera_motion, frame.motion_intensity, frame.motion_easing))
+        sources.append((path, frame.hold_frames, frame.camera_motion, frame.motion_intensity, frame.motion_easing, frame.transition))
     return sources
 
 
@@ -81,27 +81,63 @@ def camera_filter(duration: int, motion: str, intensity: int, easing: str) -> st
     )
 
 
+def dissolve_frames(duration: int) -> int:
+    return min(8, max(1, duration // 3))
+
+
+def fade_filter(duration: int) -> str:
+    length = max(1, min(8, duration // 4))
+    return (f",fade=t=in:s=0:n={length},"
+            f"fade=t=out:s={max(0, duration - length)}:n={length}")
+
+
 def render_mp4(sources: list[tuple[Path | None, int]], output: Path, ffmpeg: str) -> None:
     """Encode deterministic 1080p/24fps segments, then concatenate without re-encoding."""
     with tempfile.TemporaryDirectory(prefix="vantora-render-") as temp:
         workspace = Path(temp)
         segments = []
-        for index, (source, duration, motion, intensity, easing) in enumerate(sources):
+        for index, (source, duration, motion, intensity, easing, transition) in enumerate(sources):
             segment = workspace / f"part-{index:04d}.mp4"
             input_args = (
                 ["-f", "lavfi", "-i", f"color=c=0x161a20:s=1920x1080:r={FPS}"]
                 if source is None else
                 ["-loop", "1", "-framerate", str(FPS), "-i", str(source)]
             )
+            vf = camera_filter(duration, motion, intensity, easing) if source else camera_filter(duration, "none", 0, "linear")
+            if transition == "fade":
+                vf += fade_filter(duration)
             cmd = [
                 ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
                 *input_args,
-                "-vf", camera_filter(duration, motion, intensity, easing) if source else camera_filter(duration, "none", 0, "linear"),
+                "-vf", vf,
                 "-frames:v", str(duration), "-an", "-c:v", "libx264",
                 "-preset", "veryfast", "-crf", "20", "-r", str(FPS),
                 "-movflags", "+faststart", str(segment),
             ]
             subprocess.run(cmd, check=True, capture_output=True, timeout=600)
+            if transition == "cross-dissolve" and segments:
+                still = workspace / f"outgoing-{index:04d}.png"
+                previous_duration = sources[index - 1][1]
+                subprocess.run([
+                    ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
+                    "-i", str(segments[-1]),
+                    "-vf", f"select=eq(n\\,{previous_duration - 1})",
+                    "-vsync", "vfr", "-frames:v", "1", str(still),
+                ], check=True, capture_output=True, timeout=600)
+                blended = workspace / f"blended-{index:04d}.mp4"
+                length = dissolve_frames(duration)
+                alpha = f"min(1,(N+1)/({length}+1))"
+                expression = f"A*(1-{alpha})+B*{alpha}"
+                subprocess.run([
+                    ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
+                    "-loop", "1", "-framerate", str(FPS), "-i", str(still),
+                    "-i", str(segment),
+                    "-filter_complex", f"[0:v][1:v]blend=all_expr='{expression}',format=yuv420p[v]",
+                    "-map", "[v]", "-frames:v", str(duration), "-an",
+                    "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+                    "-r", str(FPS), "-movflags", "+faststart", str(blended),
+                ], check=True, capture_output=True, timeout=600)
+                segment = blended
             segments.append(segment)
         # FFmpeg concat files require single-quote escaping; segment paths are
         # generated under our own temporary directory rather than user input.
