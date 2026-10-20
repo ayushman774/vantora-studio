@@ -1,6 +1,7 @@
 import {useCallback,useEffect,useState,type FormEvent} from "react";
 import {ArrowLeft,Plus,Pencil,Trash2,RefreshCw,Clapperboard} from "lucide-react";
 import type {Scene,Shot,ProductionStatus} from "./sceneTypes";
+import StoryboardWorkspace from "./StoryboardWorkspace";
 import {listScenes,createScene,updateScene,deleteScene,listShots,createShot,updateShot,deleteShot} from "./scenesApi";
 
 const statuses:ProductionStatus[]=["draft","planned","in_progress","review","approved"];
@@ -12,6 +13,7 @@ const initial=(kind:"scene"|"shot",number:number,item?:Scene|Shot):Editor=>({
 });
 export default function SceneWorkspace({projectId,seasonId,episodeId,episodeTitle,onBack}:{projectId:string;seasonId:string;episodeId:string;episodeTitle:string;onBack:()=>void}){
   const [scenes,setScenes]=useState<Scene[]>([]);
+  const [storyboardShot,setStoryboardShot]=useState<Shot|null>(null);
   const [shots,setShots]=useState<Shot[]>([]);
   const [selected,setSelected]=useState<string|null>(null);
   const [editor,setEditor]=useState<Editor|null>(null);
@@ -64,6 +66,7 @@ export default function SceneWorkspace({projectId,seasonId,episodeId,episodeTitl
     try{await deleteShot(projectId,seasonId,episodeId,selected,item.id);await refreshShots(selected);}
     catch(e){setError(e instanceof Error?e.message:"Delete failed");}finally{setBusy(false);}
   }
+  if(storyboardShot&&selected) return <StoryboardWorkspace key={storyboardShot.id} projectId={projectId} seasonId={seasonId} episodeId={episodeId} sceneId={selected} shotId={storyboardShot.id} shotTitle={storyboardShot.title} onBack={()=>setStoryboardShot(null)}/>;
   return <section className="scene-workspace">
     <div className="project-toolbar"><div><button className="secondary-action" onClick={onBack}><ArrowLeft size={15}/> Episodes</button><div className="eyebrow" style={{marginTop:16}}>CINEMATIC PRODUCTION / {episodeTitle}</div><h2>Scenes & Shots</h2></div><div className="projects-actions"><button className="secondary-action" onClick={()=>void refresh()} disabled={loading||busy}><RefreshCw size={15}/> Refresh</button><button className="primary-action" onClick={()=>setEditor(initial("scene",Math.max(0,...scenes.map(s=>s.number))+1))}><Plus size={15}/> New scene</button></div></div>
     {error&&<div className="project-error" role="alert">{error}</div>}
@@ -83,7 +86,7 @@ export default function SceneWorkspace({projectId,seasonId,episodeId,episodeTitl
       </aside>
       <div className="cinematic-episode-panel">{scene?<><div className="cinematic-episode-header"><div><span className="project-type">SCENE {scene.number} · {scene.status.replaceAll("_"," ").toUpperCase()}</span><h3>{scene.title}</h3>{scene.description&&<p>{scene.description}</p>}<p>{[scene.location,scene.time_of_day].filter(Boolean).join(" · ")}</p></div><div className="projects-actions"><button className="secondary-action icon-action" aria-label="Edit scene" onClick={()=>setEditor(initial("scene",scene.number,scene))}><Pencil size={15}/></button><button className="danger-action icon-action" disabled={busy} aria-label="Delete scene" onClick={()=>void removeScene(scene)}><Trash2 size={15}/></button></div></div>
       <div className="cinematic-episode-toolbar"><strong>Shots <span>{shots.length}</span></strong><button className="primary-action" onClick={()=>setEditor(initial("shot",Math.max(0,...shots.map(s=>s.number))+1))}><Plus size={15}/> Add shot</button></div>
-      <div className="cinematic-episode-list">{shots.length===0?<div className="cinematic-episode-empty">No shots in this scene yet.</div>:shots.map(shot=><article className="cinematic-episode-row" key={shot.id}><div className="cinematic-episode-number">{String(shot.number).padStart(2,"0")}</div><div className="workspace-episode-info"><strong>{shot.title}</strong><p>{shot.status.replaceAll("_"," ")} · {shot.duration_frames} frames</p>{shot.description&&<p>{shot.description}</p>}{shot.camera&&<p>Camera: {shot.camera}</p>}{shot.action&&<p>Action: {shot.action}</p>}</div><button className="secondary-action icon-action" aria-label={"Edit shot "+shot.number} onClick={()=>setEditor(initial("shot",shot.number,shot))}><Pencil size={15}/></button><button className="danger-action icon-action" disabled={busy} aria-label={"Delete shot "+shot.number} onClick={()=>void removeShot(shot)}><Trash2 size={15}/></button></article>)}</div></>:<div className="cinematic-episode-empty">Select or create a scene to plan its shots.</div>}</div>
+      <div className="cinematic-episode-list">{shots.length===0?<div className="cinematic-episode-empty">No shots in this scene yet.</div>:shots.map(shot=><article className="cinematic-episode-row" key={shot.id}><div className="cinematic-episode-number">{String(shot.number).padStart(2,"0")}</div><div className="workspace-episode-info"><strong>{shot.title}</strong><p>{shot.status.replaceAll("_"," ")} · {shot.duration_frames} frames</p>{shot.description&&<p>{shot.description}</p>}{shot.camera&&<p>Camera: {shot.camera}</p>}{shot.action&&<p>Action: {shot.action}</p>}</div><button className="secondary-action" onClick={()=>setStoryboardShot(shot)}>Storyboard</button><button className="secondary-action icon-action" aria-label={"Edit shot "+shot.number} onClick={()=>setEditor(initial("shot",shot.number,shot))}><Pencil size={15}/></button><button className="danger-action icon-action" disabled={busy} aria-label={"Delete shot "+shot.number} onClick={()=>void removeShot(shot)}><Trash2 size={15}/></button></article>)}</div></>:<div className="cinematic-episode-empty">Select or create a scene to plan its shots.</div>}</div>
     </div>}
   </section>;
 }
