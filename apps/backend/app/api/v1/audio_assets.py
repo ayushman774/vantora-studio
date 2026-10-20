@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.v1.characters import project_or_404
-from app.database.models import AudioAsset
+from app.database.models import AudioAsset, AnimaticAudioClip
 
 router = APIRouter(prefix="/projects/{project_id}/audio-assets", tags=["Audio Assets"])
 CATEGORIES = {"music", "sound_effect", "voice"}
@@ -137,6 +137,9 @@ def delete_audio(project_id: str, audio_id: str, request: Request):
     with Session(request.app.state.engine) as db:
         item = audio_or_404(db, project_id, audio_id)
         target = audio_root(request, project_id) / item.filename
+        linked = db.scalar(select(AnimaticAudioClip.id).where(AnimaticAudioClip.audio_asset_id == audio_id).limit(1))
+        if linked is not None:
+            raise HTTPException(409, "Remove audio clips from animatic timelines before deleting this file")
         db.delete(item)
         db.commit()
         target.unlink(missing_ok=True)
