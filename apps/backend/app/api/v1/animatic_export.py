@@ -12,7 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.v1.storyboards import parents
-from app.database.models import StoryboardFrame, Asset
+from app.database.models import StoryboardFrame, Asset, AnimaticAudioClip, AudioAsset
 
 router = APIRouter(
     prefix="/projects/{project_id}/seasons/{season_id}/episodes/{episode_id}/scenes/{scene_id}/shots/{shot_id}",
@@ -152,6 +152,51 @@ def render_mp4(sources: list[tuple[Path | None, int, str, int, str, str]], outpu
         ], check=True, capture_output=True, timeout=600)
 
 
+
+def audio_mix_plan(clips, assets, folder, total_frames):
+    """Resolve only audio belonging to the current project, clip to shot duration."""
+    plan = []
+    for clip in clips:
+        if clip.muted or clip.volume <= 0 or clip.start_frame >= total_frames:
+            continue
+        asset = assets.get(clip.audio_asset_id)
+        if asset is None:
+            raise HTTPException(422, "An audio clip references an unavailable project audio file.")
+        path = folder / asset.filename
+        if not path.is_file():
+            raise HTTPException(422, f"Audio file is missing: {asset.title}")
+        duration = min(clip.duration_frames, total_frames - clip.start_frame)
+        if duration > 0:
+            plan.append((path, clip.start_frame, duration, clip.volume))
+    return plan
+
+
+def mux_audio(video, output, ffmpeg, plan, total_frames):
+    """Mix timeline-aligned audio and mux AAC with unchanged H.264 video."""
+    inputs, filters, labels = [], [], []
+    for index, (path, start, duration, volume) in enumerate(plan):
+        inputs.extend(["-i", str(path)])
+        filters.append(
+            f"[{index + 1}:a]aresample=48000,asetpts=PTS-STARTPTS,"
+            f"apad,atrim=duration={duration / FPS:.9f},"
+            f"volume={volume:.6f},adelay={round(start * 1000 / FPS)}:all=1[a{index}]"
+        )
+        labels.append(f"[a{index}]")
+    filters.append(
+        "".join(labels) +
+        f"amix=inputs={len(labels)}:duration=longest:dropout_transition=0,"
+        f"atrim=duration={total_frames / FPS:.9f},asetpts=PTS-STARTPTS[aout]"
+    )
+    subprocess.run([
+        ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
+        "-i", str(video), *inputs,
+        "-filter_complex", ";".join(filters),
+        "-map", "0:v:0", "-map", "[aout]",
+        "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+        "-ar", "48000", "-ac", "2", "-t", f"{total_frames / FPS:.9f}",
+        "-movflags", "+faststart", str(output),
+    ], check=True, capture_output=True, timeout=600)
+
 @router.post("/animatic-export")
 def export_animatic(project_id: str, season_id: str, episode_id: str, scene_id: str, shot_id: str, request: Request):
     ffmpeg = shutil.which("ffmpeg")
@@ -163,11 +208,24 @@ def export_animatic(project_id: str, season_id: str, episode_id: str, scene_id: 
         ids = {f.asset_id for f in frames if f.asset_id}
         assets = {a.id: a for a in db.scalars(select(Asset).where(Asset.project_id == project_id, Asset.id.in_(ids))).all()}
         sources = preflight(frames, assets, request.app.state.data_root / "assets" / project_id)
+        clips = db.scalars(select(AnimaticAudioClip).where(AnimaticAudioClip.shot_id == shot_id).order_by(AnimaticAudioClip.start_frame)).all()
+        audio_ids = {clip.audio_asset_id for clip in clips}
+        audio_assets = {a.id: a for a in db.scalars(select(AudioAsset).where(AudioAsset.project_id == project_id, AudioAsset.id.in_(audio_ids))).all()}
+        total_frames = sum(frame.hold_frames for frame in frames)
+        plan = audio_mix_plan(clips, audio_assets, request.app.state.data_root / "audio" / project_id, total_frames)
     exports = request.app.state.data_root / "exports" / project_id
     exports.mkdir(parents=True, exist_ok=True)
     output = exports / f"animatic-{uuid4().hex}.mp4"
     try:
-        render_mp4(sources, output, ffmpeg)
+        if plan:
+            video_only = exports / f"animatic-video-{uuid4().hex}.mp4"
+            try:
+                render_mp4(sources, video_only, ffmpeg)
+                mux_audio(video_only, output, ffmpeg, plan, total_frames)
+            finally:
+                video_only.unlink(missing_ok=True)
+        else:
+            render_mp4(sources, output, ffmpeg)
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
         output.unlink(missing_ok=True)
         stderr = getattr(exc, "stderr", b"") or b""
