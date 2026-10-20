@@ -42,6 +42,7 @@ def test_storyboard_frame_lifecycle_and_isolation(tmp_path):
         assert motion.json()["camera_motion"] == "zoom-in"
         assert motion.json()["transition"] == "fade"
         assert client.get(root+"/"+fid).json()["camera_motion"] == "zoom-in"
+        assert client.patch(root+"/"+fid,json={"transition":"cross-dissolve"}).json()["transition"] == "cross-dissolve"
         assert client.patch(root+"/"+fid,json={"camera_motion":"warp"}).status_code == 422
         assert client.patch(root+"/"+fid,json={"transition":"dissolve"}).status_code == 422
         linked = client.patch(root+"/"+fid,json={"asset_id":"asset-p1"})
