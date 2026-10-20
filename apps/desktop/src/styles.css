@@ -219,3 +219,41 @@ body,.shell,.main{background:#0b0f14}
 .storyboard-frame-meta{font-size:11px;color:#95a6b6}
 .storyboard-card-body p{font-size:12px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;color:#b0becd;margin:0}
 .storyboard-card-body .projects-actions{margin-top:8px}
+
+
+/* v0.11 storyboard gallery refinement; scoped to storyboard workspace */
+.storyboard-workspace{max-width:1600px;margin:0 auto}
+.storyboard-workspace .project-toolbar{margin-bottom:22px}
+.storyboard-overview{display:flex;align-items:center;gap:30px;flex-wrap:wrap;padding:17px 20px;margin-bottom:24px;background:#151f29;border:1px solid #2d3b4a;border-radius:12px}
+.storyboard-overview>div{display:grid;gap:6px;min-width:125px}
+.storyboard-overview>div span{font-size:10px;font-weight:700;letter-spacing:1.3px;color:#93a4b5}
+.storyboard-overview strong{font-size:22px;color:#f1f6fa}
+.storyboard-overview strong small{font-size:12px;font-weight:400;color:#9fb0bf}
+.storyboard-overview>p{margin:0 0 0 auto;color:#8fa1b1;font-size:12px}
+.storyboard-workspace .storyboard-grid{grid-template-columns:repeat(auto-fill,minmax(min(100%,285px),1fr));gap:18px;align-items:start}
+.storyboard-workspace .storyboard-card{display:flex;flex-direction:column;background:#17212b;border:1px solid #324151;border-radius:13px;transition:border-color .15s,transform .15s}
+.storyboard-workspace .storyboard-card:hover{border-color:#78965a;transform:translateY(-2px)}
+.storyboard-workspace .storyboard-frame-preview{position:relative;aspect-ratio:16/9;min-height:0;background:radial-gradient(ellipse at 50% 60%,#2b3d3b,#1c2b32 70%);display:flex;flex-direction:column;justify-content:space-between;align-items:stretch;padding:13px}
+.storyboard-preview-top,.storyboard-preview-bottom{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:11px;font-weight:700;color:#dce8ef}
+.storyboard-preview-top>span:first-child{letter-spacing:1px}
+.storyboard-preview-center{display:grid;justify-items:center;gap:7px;color:#89a59c;margin:auto}
+.storyboard-preview-center span{font-size:11px;font-weight:400;color:#91a9b0}
+.storyboard-preview-bottom{justify-content:flex-end;font-size:11px;color:#c4d1d8;font-weight:500}
+.storyboard-status{border-radius:5px;padding:5px 8px;background:#304036;color:#c2fc5a;text-transform:uppercase;font-size:9px;letter-spacing:.5px}
+.storyboard-status-review{background:#423a2d;color:#f6ce8c}
+.storyboard-status-approved{background:#2c4938;color:#9ff0b4}
+.storyboard-status-in_progress{background:#283e56;color:#9ac8ff}
+.storyboard-workspace .storyboard-card-body{padding:17px;display:flex;flex-direction:column;gap:12px}
+.storyboard-card-body h3{font-size:15px;line-height:1.4;margin:0;color:#f1f5fa;overflow-wrap:anywhere}
+.storyboard-workspace .storyboard-summary{font-size:12px;line-height:1.6;color:#aebdca;margin:0;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;min-height:58px}
+.storyboard-details{border-top:1px solid #304050;padding-top:11px}
+.storyboard-details summary{display:flex;align-items:center;justify-content:space-between;cursor:pointer;list-style:none;font-size:12px;color:#c2fc5a;font-weight:600}
+.storyboard-details summary::-webkit-details-marker{display:none}
+.storyboard-details[open] summary svg{transform:rotate(180deg)}
+.storyboard-notes{display:grid;gap:12px;padding-top:14px}
+.storyboard-workspace .storyboard-notes p{display:grid;gap:5px;font-size:12px;line-height:1.6;color:#b3c0cb;margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.storyboard-notes b{font-size:10px;letter-spacing:.6px;text-transform:uppercase;color:#e5edf5}
+.storyboard-card-actions{display:flex;justify-content:space-between;align-items:center;gap:10px;padding-top:12px;border-top:1px solid #304050}
+.storyboard-card-actions .secondary-action{flex:1;justify-content:center}
+.storyboard-workspace button:focus-visible,.storyboard-details summary:focus-visible{outline:2px solid #c2fc5a;outline-offset:3px}
+@media(max-width:760px){.storyboard-overview{gap:18px}.storyboard-overview>p{margin-left:0;width:100%}}
