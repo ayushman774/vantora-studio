@@ -5,7 +5,8 @@ const base = (projectId: string) => `http://127.0.0.1:8000/api/v1/projects/${enc
 async function checked(response: Response) {
   if (!response.ok) {
     let detail = `Request failed (HTTP ${response.status})`;
-    try { const body = await response.json(); if (typeof body.detail === "string") detail = body.detail; } catch { /* fallback */ }
+    try { const body = await response.json(); if (typeof body.detail === "string") detail = body.detail;
+      else if (Array.isArray(body.detail)) detail = body.detail.map((item: {msg?:string;loc?:unknown[]}) => (Array.isArray(item.loc) ? item.loc.join(".") + ": " : "") + (item.msg ?? "Invalid request")).join("; "); } catch { /* fallback */ }
     throw new Error(detail);
   }
   return response;
