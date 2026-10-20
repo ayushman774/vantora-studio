@@ -24,7 +24,7 @@ FPS = 24
 MAX_FRAMES = FPS * 60 * 10  # ten minutes, bounded synchronous export
 
 
-def preflight(frames: list[StoryboardFrame], assets: dict[str, Asset], folder: Path) -> list[tuple[Path, int]]:
+def preflight(frames: list[StoryboardFrame], assets: dict[str, Asset], folder: Path) -> list[tuple[Path | None, int]]:
     if not frames:
         raise HTTPException(422, "Add storyboard frames before exporting.")
     if sum(frame.hold_frames for frame in frames) > MAX_FRAMES:
@@ -35,7 +35,8 @@ def preflight(frames: list[StoryboardFrame], assets: dict[str, Asset], folder: P
             raise HTTPException(422, "This first export version supports static frames with cut transitions only. Motion and blends are coming next.")
         asset = assets.get(frame.asset_id or "")
         if asset is None:
-            raise HTTPException(422, f"Frame {frame.number} needs an attached image before export.")
+            sources.append((None, frame.hold_frames))
+            continue
         path = folder / asset.filename
         if not path.is_file():
             raise HTTPException(422, f"Frame {frame.number} image is missing on disk.")
@@ -43,16 +44,21 @@ def preflight(frames: list[StoryboardFrame], assets: dict[str, Asset], folder: P
     return sources
 
 
-def render_mp4(sources: list[tuple[Path, int]], output: Path, ffmpeg: str) -> None:
+def render_mp4(sources: list[tuple[Path | None, int]], output: Path, ffmpeg: str) -> None:
     """Encode deterministic 1080p/24fps segments, then concatenate without re-encoding."""
     with tempfile.TemporaryDirectory(prefix="vantora-render-") as temp:
         workspace = Path(temp)
         segments = []
         for index, (source, duration) in enumerate(sources):
             segment = workspace / f"part-{index:04d}.mp4"
+            input_args = (
+                ["-f", "lavfi", "-i", f"color=c=0x161a20:s=1920x1080:r={FPS}"]
+                if source is None else
+                ["-loop", "1", "-framerate", str(FPS), "-i", str(source)]
+            )
             cmd = [
                 ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
-                "-loop", "1", "-framerate", str(FPS), "-i", str(source),
+                *input_args,
                 "-vf", "scale=1920:1080:force_original_aspect_ratio=decrease,"
                        "pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,format=yuv420p",
                 "-frames:v", str(duration), "-an", "-c:v", "libx264",
