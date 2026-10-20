@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 from app.core.config import Settings
-from app.database.models import Base, Project, Season, Episode, Scene, Shot
+from app.database.models import Base, Project, Season, Episode, Scene, Shot, Asset
 from app.main import create_app
 
 def test_storyboard_frame_lifecycle_and_isolation(tmp_path):
@@ -20,6 +20,8 @@ def test_storyboard_frame_lifecycle_and_isolation(tmp_path):
             db.add(Episode(id="e"+p, season_id="s"+p, number=1, title="Episode", synopsis="", created_at=now, updated_at=now))
             db.add(Scene(id="c"+p, episode_id="e"+p, number=1, title="Scene", description="", location="", time_of_day="", status="draft", created_at=now, updated_at=now))
             db.add(Shot(id="h"+p, scene_id="c"+p, number=1, title="Shot", description="", camera="", action="", duration_frames=72, status="draft", created_at=now, updated_at=now))
+        db.add(Asset(id="asset-p1",project_id="p1",category="concept",character_id=None,title="Reference",original_name="ref.png",filename="asset-p1.png",media_type="image/png",size_bytes=24,sha256="0"*64,created_at=now))
+        db.add(Asset(id="asset-p2",project_id="p2",category="concept",character_id=None,title="Foreign",original_name="foreign.png",filename="asset-p2.png",media_type="image/png",size_bytes=24,sha256="0"*64,created_at=now))
         db.commit()
     with TestClient(app) as client:
         app.state.engine.dispose()
@@ -32,6 +34,16 @@ def test_storyboard_frame_lifecycle_and_isolation(tmp_path):
         assert frame["title"] == "Establishing frame"
         assert frame["status"] == "draft"
         fid = frame["id"]
+        assert frame["asset_id"] is None
+        linked = client.patch(root+"/"+fid,json={"asset_id":"asset-p1"})
+        assert linked.status_code == 200, linked.text
+        assert linked.json()["asset_id"] == "asset-p1"
+        assert client.get(root).json()[0]["asset_id"] == "asset-p1"
+        assert client.patch(root+"/"+fid,json={"asset_id":"asset-p2"}).status_code == 422
+        assert client.patch(root+"/"+fid,json={"asset_id":"missing"}).status_code == 422
+        unlinked = client.patch(root+"/"+fid,json={"asset_id":None})
+        assert unlinked.status_code == 200, unlinked.text
+        assert unlinked.json()["asset_id"] is None
         assert client.post(root, json={"number": 1, "title": "Duplicate"}).status_code == 409
         assert client.post(root, json={"number": 2, "title": "Invalid", "hold_frames": 0}).status_code == 422
         assert client.post(root, json={"number": 2, "title": " ", "status": "planned"}).status_code == 422
