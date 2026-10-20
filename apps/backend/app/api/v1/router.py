@@ -7,6 +7,8 @@ from app.api.v1.character_references import router as character_references_route
 
 from app.api.v1.assets import router as assets_router
 
+from app.api.v1.scenes import router as scenes_router
+
 router = APIRouter(prefix="/api/v1")
 router.include_router(system_router)
 router.include_router(projects_router)
@@ -14,3 +16,5 @@ router.include_router(workspace_router)
 router.include_router(characters_router)
 router.include_router(character_references_router)
 router.include_router(assets_router)
+
+router.include_router(scenes_router)
