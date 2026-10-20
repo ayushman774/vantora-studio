@@ -283,3 +283,64 @@ body,.shell,.main{background:#0b0f14}
 @media(max-width:640px){
  .storyboard-workspace .storyboard-card{flex-basis:min(82vw,330px);width:min(82vw,330px)}
 }
+
+
+/* v0.11 storyboard: full-width vertically stacked production cards */
+.storyboard-workspace .storyboard-grid{
+ display:flex;
+ flex-direction:column;
+ flex-wrap:nowrap;
+ gap:16px;
+ overflow:visible;
+ padding:0 0 20px;
+ scroll-snap-type:none;
+}
+.storyboard-workspace .storyboard-card{
+ display:grid;
+ grid-template-columns:minmax(250px,36%) minmax(0,1fr);
+ align-items:stretch;
+ flex:none;
+ width:100%;
+ min-width:0;
+ transform:none;
+ scroll-snap-align:none;
+}
+.storyboard-workspace .storyboard-card:hover{transform:none}
+.storyboard-workspace .storyboard-frame-preview{
+ aspect-ratio:auto;
+ min-height:240px;
+ height:100%;
+ border-bottom:0;
+ border-right:1px solid #344253;
+}
+.storyboard-workspace .storyboard-card-body{
+ min-width:0;
+ padding:22px 24px;
+ justify-content:flex-start;
+}
+.storyboard-workspace .storyboard-summary{
+ min-height:0;
+ display:block;
+ overflow:visible;
+ -webkit-line-clamp:unset;
+}
+.storyboard-workspace .storyboard-card-actions{
+ margin-top:auto;
+ justify-content:flex-end;
+}
+.storyboard-workspace .storyboard-card-actions .secondary-action{flex:0 1 auto}
+@media(max-width:760px){
+ .storyboard-workspace .storyboard-card{
+  display:flex;
+  flex-direction:column;
+  width:100%;
+ }
+ .storyboard-workspace .storyboard-frame-preview{
+  height:auto;
+  min-height:0;
+  aspect-ratio:16/9;
+  border-right:0;
+  border-bottom:1px solid #344253;
+ }
+ .storyboard-workspace .storyboard-card-body{padding:17px}
+}
