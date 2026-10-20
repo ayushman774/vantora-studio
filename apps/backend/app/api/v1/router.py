@@ -18,3 +18,6 @@ router.include_router(character_references_router)
 router.include_router(assets_router)
 
 router.include_router(scenes_router)
+
+from app.api.v1.storyboards import router as storyboards_router
+router.include_router(storyboards_router)

@@ -112,3 +112,26 @@ class Shot(Base):
     status: Mapped[str] = mapped_column(String(24), nullable=False, default="draft")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class StoryboardFrame(Base):
+    """Ordered, shot-scoped storyboard planning frame (no media file yet)."""
+    __tablename__ = "storyboard_frames"
+    __table_args__ = (
+        UniqueConstraint("shot_id", "number", name="uq_storyboard_frames_shot_number"),
+        CheckConstraint("number > 0", name="ck_storyboard_frames_number_positive"),
+        CheckConstraint("hold_frames > 0", name="ck_storyboard_frames_hold_positive"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    shot_id: Mapped[str] = mapped_column(String(36), ForeignKey("shots.id", ondelete="CASCADE"), nullable=False, index=True)
+    asset_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("assets.id", ondelete="SET NULL"), nullable=True, index=True)
+    number: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    composition: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    camera_notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    continuity_notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    hold_frames: Mapped[int] = mapped_column(Integer, nullable=False, default=24)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="draft")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
