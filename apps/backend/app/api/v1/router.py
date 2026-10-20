@@ -24,3 +24,6 @@ router.include_router(storyboards_router)
 
 from app.api.v1.animatic_export import router as animatic_export_router
 router.include_router(animatic_export_router)
+
+from app.api.v1.audio_assets import router as audio_assets_router
+router.include_router(audio_assets_router)
