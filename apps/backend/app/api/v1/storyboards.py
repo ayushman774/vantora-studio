@@ -9,7 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.api.v1.scenes import scoped, shot_or_404, STATUSES
-from app.database.models import StoryboardFrame
+from app.database.models import StoryboardFrame, Asset
 
 router = APIRouter(
     prefix="/projects/{project_id}/seasons/{season_id}/episodes/{episode_id}/scenes/{scene_id}/shots/{shot_id}",
@@ -26,6 +26,7 @@ class FrameCreate(BaseModel):
     continuity_notes: str = Field(default="", max_length=5000)
     hold_frames: int = Field(default=24, ge=1, le=100000)
     status: str = "draft"
+    asset_id: str | None = None
 
 class FrameUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -37,6 +38,7 @@ class FrameUpdate(BaseModel):
     continuity_notes: str | None = Field(default=None, max_length=5000)
     hold_frames: int | None = Field(default=None, ge=1, le=100000)
     status: str | None = None
+    asset_id: str | None = None
 
 class FrameOut(FrameCreate):
     model_config = ConfigDict(from_attributes=True)
@@ -53,6 +55,13 @@ def validate(data: dict) -> dict:
     if "status" in data and data["status"] not in STATUSES:
         raise HTTPException(422, "Invalid storyboard status")
     return data
+
+def validate_asset(db: Session, project_id: str, asset_id: str | None) -> None:
+    if asset_id is None:
+        return
+    asset = db.get(Asset, asset_id)
+    if asset is None or asset.project_id != project_id:
+        raise HTTPException(422, "Image asset must belong to this project")
 
 def parents(db, project_id, season_id, episode_id, scene_id, shot_id):
     scoped(db, project_id, season_id, episode_id, scene_id)
@@ -81,6 +90,7 @@ def list_frames(project_id: str, season_id: str, episode_id: str, scene_id: str,
 def create_frame(project_id: str, season_id: str, episode_id: str, scene_id: str, shot_id: str, payload: FrameCreate, request: Request):
     with Session(request.app.state.engine) as db:
         parents(db, project_id, season_id, episode_id, scene_id, shot_id)
+        validate_asset(db, project_id, payload.asset_id)
         now = datetime.now(timezone.utc)
         item = StoryboardFrame(id=str(uuid4()), shot_id=shot_id, created_at=now, updated_at=now, **validate(payload.model_dump()))
         db.add(item)
@@ -100,8 +110,10 @@ def update_frame(project_id: str, season_id: str, episode_id: str, scene_id: str
         parents(db, project_id, season_id, episode_id, scene_id, shot_id)
         item = frame_or_404(db, shot_id, frame_id)
         data = payload.model_dump(exclude_unset=True)
-        if any(value is None for value in data.values()):
+        if any(value is None for key, value in data.items() if key != "asset_id"):
             raise HTTPException(422, "Fields cannot be null")
+        if "asset_id" in data:
+            validate_asset(db, project_id, data["asset_id"])
         for key, value in validate(data).items():
             setattr(item, key, value)
         if data:
