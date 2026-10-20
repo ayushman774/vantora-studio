@@ -344,3 +344,29 @@ body,.shell,.main{background:#0b0f14}
  }
  .storyboard-workspace .storyboard-card-body{padding:17px}
 }
+
+
+/* Storyboard-only viewport scrolling: keep application chrome and controls fixed */
+.shell:has(.storyboard-workspace){height:100dvh;min-height:0;overflow:hidden}
+.shell:has(.storyboard-workspace) .main{height:100%;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.shell:has(.storyboard-workspace) .topbar{flex:0 0 78px}
+.shell:has(.storyboard-workspace) .content{flex:1 1 auto;min-height:0;width:100%;overflow:hidden;padding-top:24px;padding-bottom:18px;display:flex;flex-direction:column}
+.storyboard-workspace{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.storyboard-workspace .project-toolbar,.storyboard-workspace .storyboard-overview,.storyboard-workspace .project-error{flex-shrink:0}
+.storyboard-workspace .storyboard-grid{
+ flex:1 1 auto;
+ min-height:0;
+ overflow-y:auto;
+ overflow-x:hidden;
+ overscroll-behavior:contain;
+ scrollbar-width:thin;
+ scrollbar-color:#526575 #151f29;
+ padding-right:10px;
+ padding-bottom:16px;
+}
+.storyboard-workspace .storyboard-grid::-webkit-scrollbar{width:9px;height:auto}
+.storyboard-workspace .storyboard-grid::-webkit-scrollbar-thumb{background:#526575;border-radius:20px}
+.storyboard-workspace .storyboard-grid::-webkit-scrollbar-track{background:#151f29;border-radius:20px}
+@media(max-width:820px){
+ .shell:has(.storyboard-workspace) .content{padding-top:16px;padding-bottom:12px}
+}
