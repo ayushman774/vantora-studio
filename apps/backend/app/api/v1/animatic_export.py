@@ -91,7 +91,7 @@ def fade_filter(duration: int) -> str:
             f"fade=t=out:s={max(0, duration - length)}:n={length}")
 
 
-def render_mp4(sources: list[tuple[Path | None, int]], output: Path, ffmpeg: str) -> None:
+def render_mp4(sources: list[tuple[Path | None, int, str, int, str, str]], output: Path, ffmpeg: str) -> None:
     """Encode deterministic 1080p/24fps segments, then concatenate without re-encoding."""
     with tempfile.TemporaryDirectory(prefix="vantora-render-") as temp:
         workspace = Path(temp)
@@ -142,7 +142,7 @@ def render_mp4(sources: list[tuple[Path | None, int]], output: Path, ffmpeg: str
         # FFmpeg concat files require single-quote escaping; segment paths are
         # generated under our own temporary directory rather than user input.
         manifest = workspace / "segments.txt"
-        manifest.write_text("".join(f"file 'part-{i:04d}.mp4'\n" for i in range(len(segments))), encoding="utf-8")
+        manifest.write_text("".join("file '" + segment.name + "'\n" for segment in segments), encoding="utf-8")
         subprocess.run([
             ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
             "-f", "concat", "-safe", "1", "-i", str(manifest),
