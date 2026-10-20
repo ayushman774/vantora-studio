@@ -2,11 +2,11 @@
 from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
-from app.api.v1.animatic_export import preflight, FPS, MAX_FRAMES
+from app.api.v1.animatic_export import preflight, camera_filter, FPS, MAX_FRAMES
 
 
 def frame(**changes):
-    values = dict(number=1, hold_frames=48, camera_motion="none", transition="cut", asset_id="a")
+    values = dict(number=1, hold_frames=48, camera_motion="none", transition="cut", asset_id="a", motion_intensity=100, motion_easing="linear")
     values.update(changes)
     return SimpleNamespace(**values)
 
@@ -14,11 +14,11 @@ def frame(**changes):
 def test_preflight_valid_static_cut(tmp_path):
     (tmp_path / "ref.png").write_bytes(b"test")
     asset = SimpleNamespace(filename="ref.png")
-    assert preflight([frame()], {"a": asset}, tmp_path) == [(tmp_path / "ref.png", 48)]
+    assert preflight([frame()], {"a": asset}, tmp_path) == [(tmp_path / "ref.png", 48, "none", 100, "linear")]
 
 
 @pytest.mark.parametrize("frames", [
-    [], [frame(camera_motion="zoom-in")], [frame(transition="fade")],
+    [], [frame(transition="fade")],
     [frame(transition="cross-dissolve")],
     [frame(hold_frames=MAX_FRAMES+1)],
 ])
@@ -35,12 +35,26 @@ def test_preflight_rejects_missing_disk_file(tmp_path):
 
 
 def test_preflight_allows_missing_image_as_placeholder(tmp_path):
-    assert preflight([frame(asset_id=None)], {}, tmp_path) == [(None, 48)]
+    assert preflight([frame(asset_id=None)], {}, tmp_path) == [(None, 48, "none", 100, "linear")]
 
 
 def test_preflight_preserves_order_with_placeholder(tmp_path):
     (tmp_path / "ref.png").write_bytes(b"test")
     frames = [frame(number=1, hold_frames=24), frame(number=2, asset_id=None, hold_frames=72)]
     assert preflight(frames, {"a": SimpleNamespace(filename="ref.png")}, tmp_path) == [
-        (tmp_path / "ref.png", 24), (None, 72),
+        (tmp_path / "ref.png", 24, "none", 100, "linear"), (None, 72, "none", 100, "linear"),
     ]
+
+
+@pytest.mark.parametrize("motion", ["zoom-in", "zoom-out", "pan-left", "pan-right"])
+@pytest.mark.parametrize("easing", ["linear", "ease-in", "ease-out", "ease-in-out"])
+def test_camera_filter_supports_motion_and_easing(motion, easing):
+    result = camera_filter(48, motion, 125, easing)
+    assert "zoompan=" in result
+    assert "d=48" in result
+    assert "fps=24" in result
+
+
+def test_preflight_accepts_motion_with_cut(tmp_path):
+    result = preflight([frame(asset_id=None, camera_motion="zoom-in", motion_intensity=175, motion_easing="ease-out")], {}, tmp_path)
+    assert result == [(None, 48, "zoom-in", 175, "ease-out")]
