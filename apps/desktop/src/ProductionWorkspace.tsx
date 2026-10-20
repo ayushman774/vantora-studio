@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Film, Plus, Pencil, Trash2, RefreshCw, Layers3, ArrowLeft } from "lucide-react";
 import type { Project } from "./projects";
+import SceneWorkspace from "./SceneWorkspace";
 import { createSeason, deleteSeason, listSeasons, updateSeason, createEpisode, deleteEpisode, listEpisodes, updateEpisode, type Season, type Episode } from "./workspaceApi";
 
 type Editor = { kind: "season" | "episode"; seasonId?: string; id?: string; number: number; title: string; text: string };
 export default function ProductionWorkspace({ project }: { project: Project }) {
   const [seasons, setSeasons] = useState<Season[]>([]);
+  const [activeEpisode, setActiveEpisode] = useState<{seasonId:string;episode:Episode}|null>(null);
   const [episodes, setEpisodes] = useState<Record<string, Episode[]>>({});
   const [selectedSeasonId, setSelectedSeasonId] = useState<string | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
@@ -49,6 +51,7 @@ export default function ProductionWorkspace({ project }: { project: Project }) {
     setError(""); try { await deleteEpisode(project.id, s.id, ep.id); setEditor(null); await reload(); } catch (e) { setError(e instanceof Error ? e.message : "Delete failed"); }
   }
   const selectedSeason = seasons.find(s => s.id === selectedSeasonId) ?? seasons[0];
+  if(activeEpisode) return <SceneWorkspace key={activeEpisode.episode.id} projectId={project.id} seasonId={activeEpisode.seasonId} episodeId={activeEpisode.episode.id} episodeTitle={activeEpisode.episode.title} onBack={()=>setActiveEpisode(null)}/>;
   return <section className="production-workspace">
     <div className="project-toolbar"><div><div className="eyebrow">PRODUCTION STRUCTURE</div><h2>Seasons & Episodes</h2></div><div className="projects-actions"><button className="secondary-action" onClick={() => void reload()} disabled={loading}><RefreshCw size={15}/> Refresh</button><button className="primary-action" onClick={() => editSeason()}><Plus size={16}/> Add season</button></div></div>
     {error && <div className="project-error" role="alert">{error}</div>}
@@ -71,7 +74,7 @@ export default function ProductionWorkspace({ project }: { project: Project }) {
         {selectedSeason && <><div className="cinematic-episode-header"><div><span className="project-type">SEASON {selectedSeason.number}</span><h3>{selectedSeason.title}</h3>{selectedSeason.description && <p>{selectedSeason.description}</p>}</div>
           <div className="projects-actions"><button className="secondary-action icon-action" aria-label="Edit season" onClick={() => editSeason(selectedSeason)}><Pencil size={15}/></button><button className="danger-action icon-action" aria-label="Delete season" onClick={() => void removeSeason(selectedSeason)}><Trash2 size={15}/></button></div></div>
           <div className="cinematic-episode-toolbar"><strong>Episodes <span>{(episodes[selectedSeason.id] ?? []).length}</span></strong><button className="primary-action" onClick={() => editEpisode(selectedSeason)}><Plus size={16}/> Add episode</button></div>
-          <div className="cinematic-episode-list">{(episodes[selectedSeason.id] ?? []).length === 0 ? <div className="cinematic-episode-empty">No episodes in this season yet.</div> : (episodes[selectedSeason.id] ?? []).map(ep => <article className="cinematic-episode-row" key={ep.id}><div className="cinematic-episode-number">{String(ep.number).padStart(2,"0")}</div><div className="workspace-episode-info"><strong>{ep.title}</strong>{ep.synopsis && <p>{ep.synopsis}</p>}</div><button className="secondary-action icon-action" aria-label={`Edit episode ${ep.number}`} onClick={() => editEpisode(selectedSeason, ep)}><Pencil size={15}/></button><button className="danger-action icon-action" aria-label={`Delete episode ${ep.number}`} onClick={() => void removeEpisode(selectedSeason, ep)}><Trash2 size={15}/></button></article>)}</div>
+          <div className="cinematic-episode-list">{(episodes[selectedSeason.id] ?? []).length === 0 ? <div className="cinematic-episode-empty">No episodes in this season yet.</div> : (episodes[selectedSeason.id] ?? []).map(ep => <article className="cinematic-episode-row" key={ep.id}><div className="cinematic-episode-number">{String(ep.number).padStart(2,"0")}</div><div className="workspace-episode-info"><strong>{ep.title}</strong>{ep.synopsis && <p>{ep.synopsis}</p>}</div><button className="secondary-action" onClick={() => setActiveEpisode({seasonId:selectedSeason.id,episode:ep})}><Film size={15}/> Scenes & Shots</button><button className="secondary-action icon-action" aria-label={`Edit episode ${ep.number}`} onClick={() => editEpisode(selectedSeason, ep)}><Pencil size={15}/></button><button className="danger-action icon-action" aria-label={`Delete episode ${ep.number}`} onClick={() => void removeEpisode(selectedSeason, ep)}><Trash2 size={15}/></button></article>)}</div>
         </>}
       </div>
     </div>}
