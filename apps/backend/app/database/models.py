@@ -132,6 +132,8 @@ class StoryboardFrame(Base):
     camera_notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
     continuity_notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
     hold_frames: Mapped[int] = mapped_column(Integer, nullable=False, default=24)
+    motion_intensity: Mapped[int] = mapped_column(Integer, nullable=False, default=100)
+    motion_easing: Mapped[str] = mapped_column(String(24), nullable=False, default="linear")
     camera_motion: Mapped[str] = mapped_column(String(24), nullable=False, default="none")
     transition: Mapped[str] = mapped_column(String(24), nullable=False, default="cut")
     status: Mapped[str] = mapped_column(String(24), nullable=False, default="draft")

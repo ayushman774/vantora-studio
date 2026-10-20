@@ -21,3 +21,6 @@ router.include_router(scenes_router)
 
 from app.api.v1.storyboards import router as storyboards_router
 router.include_router(storyboards_router)
+
+from app.api.v1.animatic_export import router as animatic_export_router
+router.include_router(animatic_export_router)

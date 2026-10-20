@@ -12,7 +12,8 @@ from app.api.v1.scenes import scoped, shot_or_404, STATUSES
 from app.database.models import StoryboardFrame, Asset
 
 MOTIONS = {"none", "zoom-in", "zoom-out", "pan-left", "pan-right"}
-TRANSITIONS = {"cut", "fade"}
+TRANSITIONS = {"cut", "fade", "cross-dissolve"}
+EASINGS = {"linear", "ease-in", "ease-out", "ease-in-out"}
 
 router = APIRouter(
     prefix="/projects/{project_id}/seasons/{season_id}/episodes/{episode_id}/scenes/{scene_id}/shots/{shot_id}",
@@ -28,6 +29,8 @@ class FrameCreate(BaseModel):
     camera_notes: str = Field(default="", max_length=5000)
     continuity_notes: str = Field(default="", max_length=5000)
     hold_frames: int = Field(default=24, ge=1, le=100000)
+    motion_intensity: int = Field(default=100, ge=0, le=200)
+    motion_easing: str = "linear"
     camera_motion: str = "none"
     transition: str = "cut"
     status: str = "draft"
@@ -42,6 +45,8 @@ class FrameUpdate(BaseModel):
     camera_notes: str | None = Field(default=None, max_length=5000)
     continuity_notes: str | None = Field(default=None, max_length=5000)
     hold_frames: int | None = Field(default=None, ge=1, le=100000)
+    motion_intensity: int | None = Field(default=None, ge=0, le=200)
+    motion_easing: str | None = None
     camera_motion: str | None = None
     transition: str | None = None
     status: str | None = None
@@ -55,6 +60,8 @@ class FrameOut(FrameCreate):
     updated_at: datetime
 
 def validate(data: dict) -> dict:
+    if "motion_easing" in data and data["motion_easing"] not in EASINGS:
+        raise HTTPException(422, "Invalid camera motion easing")
     if "camera_motion" in data and data["camera_motion"] not in MOTIONS:
         raise HTTPException(422, "Invalid camera motion")
     if "transition" in data and data["transition"] not in TRANSITIONS:
