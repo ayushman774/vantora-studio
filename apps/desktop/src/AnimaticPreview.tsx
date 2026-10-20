@@ -16,6 +16,15 @@ export default function AnimaticPreview({projectId,frames,assets}:{projectId:str
  const elapsed=position-(starts[frameIndex]??0);
  const progress=Math.min(1,Math.max(0,elapsed/Math.max(1,(current?.hold_frames??1)-1)));
  const transforms:Record<StoryboardFrame["camera_motion"],string>={none:"none","zoom-in":`scale(${1+progress*.12})`,"zoom-out":`scale(${1.12-progress*.12})`,"pan-left":`scale(1.12) translateX(${(0.05-progress*.10)*100}%)`,"pan-right":`scale(1.12) translateX(${(-0.05+progress*.10)*100}%)`};
+ const previous=frameIndex>0?ordered[frameIndex-1]:null;
+ // Blend during the first up-to-eight frames of the incoming frame. The outgoing
+ // still is held at its final camera position; total timeline duration is unchanged.
+ const dissolveLength=Math.min(8,Math.max(1,Math.floor(current.hold_frames/3)));
+ const dissolving=current.transition==="cross-dissolve"&&previous!==null&&elapsed<dissolveLength;
+ const incomingOpacity=dissolving?(elapsed+1)/(dissolveLength+1):1;
+ const previousHasImage=previous?.asset_id&&assets.some(asset=>asset.id===previous.asset_id);
+ const previousMotion=previous?.camera_motion??"none";
+ const previousTransform=previousMotion==="zoom-in"?"scale(1.12)":previousMotion==="zoom-out"?"scale(1)":previousMotion==="pan-left"?"scale(1.12) translateX(-5%)":previousMotion==="pan-right"?"scale(1.12) translateX(5%)":"none";
  const edge=Math.min(elapsed,Math.max(0,(current?.hold_frames??1)-1-elapsed));
  const opacity=current?.transition==="fade"?Math.min(1,(edge+1)/Math.max(1,Math.min(8,Math.floor((current?.hold_frames??1)/4)))):1;
  useEffect(()=>{setPlaying(false);setPosition(0);clock.current=null;},[projectId,frames]);
@@ -36,8 +45,8 @@ export default function AnimaticPreview({projectId,frames,assets}:{projectId:str
  if(!ordered.length)return null;
  const hasImage=current.asset_id&&assets.some(asset=>asset.id===current.asset_id);
  return <section className="animatic-panel" aria-label="Animatic preview">
-  <div className="animatic-heading"><div><span className="eyebrow">V0.13 / CAMERA MOTION PREVIEW</span><h3>Storyboard playback</h3></div><span>{FPS} FPS · {(total/FPS).toFixed(2)}s</span></div>
-  <div className="animatic-screen">{hasImage?<img src={assetImageUrl(projectId,current.asset_id!)} alt={current.title} style={{transform:transforms[current.camera_motion],opacity}}/>:<div className="animatic-placeholder"><Film size={34}/><span>Visual pending</span></div>}<div className="animatic-screen-caption"><span>FRAME {String(current.number).padStart(2,"0")} · {current.title}</span><span>{(position/FPS).toFixed(2)} / {(total/FPS).toFixed(2)}s</span></div></div>
+  <div className="animatic-heading"><div><span className="eyebrow">V0.14 / ADVANCED ANIMATIC</span><h3>Storyboard playback</h3></div><span>{FPS} FPS · {(total/FPS).toFixed(2)}s</span></div>
+  <div className="animatic-screen">{dissolving&&<div className="animatic-layer animatic-outgoing">{previousHasImage?<img src={assetImageUrl(projectId,previous!.asset_id!)} alt="" aria-hidden="true" style={{transform:previousTransform}}/>:<div className="animatic-placeholder"><Film size={34}/><span>Visual pending</span></div>}</div>}<div className="animatic-layer animatic-incoming" style={{opacity:incomingOpacity*(current.transition==="fade"?opacity:1)}}>{hasImage?<img src={assetImageUrl(projectId,current.asset_id!)} alt={current.title} style={{transform:transforms[current.camera_motion]}}/>:<div className="animatic-placeholder"><Film size={34}/><span>Visual pending</span></div>}</div><div className="animatic-screen-caption"><span>FRAME {String(current.number).padStart(2,"0")} · {current.title}</span><span>{(position/FPS).toFixed(2)} / {(total/FPS).toFixed(2)}s</span></div></div>
   <div className="animatic-motion-settings"><span>Camera: {current.camera_motion.replaceAll("-"," ")} · Transition: {current.transition}</span><small>Edit a storyboard frame to change its saved camera motion and transition.</small></div>
   <div className="animatic-controls"><button type="button" className="secondary-action icon-action" aria-label="Previous frame" onClick={()=>seek(starts[Math.max(0,frameIndex-1)])}><SkipBack size={16}/></button><button type="button" className="primary-action" onClick={()=>{if(position>=total-1)setPosition(0);setPlaying(!playing);}}>{playing?<><Pause size={16}/> Pause</>:<><Play size={16}/> Play</>}</button><button type="button" className="secondary-action icon-action" aria-label="Next frame" onClick={()=>seek(starts[Math.min(starts.length-1,frameIndex+1)])}><SkipForward size={16}/></button><button type="button" className="secondary-action icon-action" aria-label="Restart" onClick={()=>seek(0)}><RotateCcw size={16}/></button></div>
   <input className="animatic-scrubber" aria-label="Seek animatic" type="range" min={0} max={Math.max(0,total-1)} value={position} onChange={e=>seek(Number(e.target.value))}/>
