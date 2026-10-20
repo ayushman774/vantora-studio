@@ -66,7 +66,7 @@ export default function AnimaticPreview({projectId,frames,assets,audioAssets=[],
    const relative=(position-clip.start_frame)/FPS;
    const length=clip.duration_frames/FPS;
    const active=relative>=0&&relative<length&&!clip.muted&&clip.volume>0;
-   element.volume=Math.max(0,Math.min(1,clip.volume/2));
+   element.volume=Math.max(0,Math.min(1,clip.volume));
    if(!active){element.pause();continue;}
    if(Math.abs(element.currentTime-relative)>.18){
     try{element.currentTime=relative;}catch{/* Audio metadata not loaded yet */}
