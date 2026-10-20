@@ -1,6 +1,6 @@
 """SQLAlchemy metadata for versioned Studio schema."""
 from datetime import datetime
-from sqlalchemy import DateTime, String, Text, Index, Integer, ForeignKey, UniqueConstraint, CheckConstraint
+from sqlalchemy import DateTime, String, Text, Index, Integer, ForeignKey, UniqueConstraint, CheckConstraint, Float, Boolean
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 class Base(DeclarativeBase):
@@ -155,3 +155,22 @@ class AudioAsset(Base):
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AnimaticAudioClip(Base):
+    """Shot-scoped audio clip positioned on the 24 FPS storyboard timeline."""
+    __tablename__ = "animatic_audio_clips"
+    __table_args__ = (
+        CheckConstraint("start_frame >= 0", name="ck_animatic_audio_start_nonnegative"),
+        CheckConstraint("duration_frames > 0", name="ck_animatic_audio_duration_positive"),
+        CheckConstraint("volume >= 0 AND volume <= 2", name="ck_animatic_audio_volume_range"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    shot_id: Mapped[str] = mapped_column(String(36), ForeignKey("shots.id", ondelete="CASCADE"), nullable=False, index=True)
+    audio_asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("audio_assets.id", ondelete="RESTRICT"), nullable=False, index=True)
+    start_frame: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    duration_frames: Mapped[int] = mapped_column(Integer, nullable=False, default=24)
+    volume: Mapped[float] = mapped_column(Float(), nullable=False, default=1.0)
+    muted: Mapped[bool] = mapped_column(Boolean(), nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
