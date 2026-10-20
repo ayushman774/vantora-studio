@@ -12,7 +12,7 @@ from app.api.v1.scenes import scoped, shot_or_404, STATUSES
 from app.database.models import StoryboardFrame, Asset
 
 MOTIONS = {"none", "zoom-in", "zoom-out", "pan-left", "pan-right"}
-TRANSITIONS = {"cut", "fade"}
+TRANSITIONS = {"cut", "fade", "cross-dissolve"}
 
 router = APIRouter(
     prefix="/projects/{project_id}/seasons/{season_id}/episodes/{episode_id}/scenes/{scene_id}/shots/{shot_id}",
