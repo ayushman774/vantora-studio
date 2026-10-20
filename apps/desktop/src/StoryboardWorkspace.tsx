@@ -1,6 +1,7 @@
 import {useCallback,useEffect,useState,type FormEvent} from "react";
 import {ArrowLeft,Plus,Pencil,Trash2,RefreshCw,PanelsTopLeft,Clock3,ChevronDown,Film} from "lucide-react";
 import {listAssets,uploadAsset,assetImageUrl,type Asset} from "./assetsApi";
+import AnimaticPreview from "./AnimaticPreview";
 import type {ProductionStatus} from "./sceneTypes";
 import type {StoryboardFrame,StoryboardInput} from "./storyboardApi";
 import {listStoryboardFrames,createStoryboardFrame,updateStoryboardFrame,deleteStoryboardFrame} from "./storyboardApi";
@@ -50,6 +51,7 @@ export default function StoryboardWorkspace({projectId,seasonId,episodeId,sceneI
  return <section className="storyboard-workspace">
   <div className="project-toolbar"><div><button className="secondary-action" onClick={onBack}><ArrowLeft size={15}/> Back to shots</button><div className="eyebrow" style={{marginTop:16}}>STORYBOARD / {shotTitle}</div><h2>Storyboard Frames</h2></div><div className="projects-actions"><button className="secondary-action" disabled={busy||loading} onClick={()=>void refresh()}><RefreshCw size={15}/> Refresh</button><button className="primary-action" onClick={()=>{setError("");setEditor(blank(Math.max(0,...frames.map(f=>f.number))+1));}}><Plus size={15}/> New frame</button></div></div>
   <div className="storyboard-overview"><div><span>SHOT STORYBOARD</span><strong>{frames.length} <small>frames</small></strong></div><div><span>TOTAL HOLD</span><strong>{frames.reduce((sum,frame)=>sum+frame.hold_frames,0)} <small>frames</small></strong></div><p>Sequence planning · Frames ordered by number · Local visual references</p></div>
+  {!loading&&frames.length>0&&<AnimaticPreview projectId={projectId} frames={frames} assets={assets}/>}
   {error&&<div className="project-error" role="alert">{error}</div>}
   {editor&&<div className="workspace-editor-backdrop"><form className="project-form workspace-editor cinematic-editor" onSubmit={e=>void save(e)}>
    <div className="project-form-heading"><h2>{editor.id?"Edit":"New"} storyboard frame</h2><button type="button" className="secondary-action" disabled={busy} onClick={()=>setEditor(null)}>Cancel</button></div>
