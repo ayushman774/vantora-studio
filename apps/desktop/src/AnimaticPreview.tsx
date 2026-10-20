@@ -11,7 +11,7 @@ export default function AnimaticPreview({projectId,frames,assets}:{projectId:str
  const [position,setPosition]=useState(0);
  const [playing,setPlaying]=useState(false);
  const clock=useRef<{at:number;position:number}|null>(null);
- const frameIndex=ordered.length?Math.max(0,starts.findLastIndex(start=>start<=position)):0;
+ const frameIndex=ordered.length?Math.max(0,starts.reduce((found,start,index)=>start<=position?index:found,0)):0;
  const current=ordered[frameIndex];
  useEffect(()=>{setPlaying(false);setPosition(0);clock.current=null;},[projectId,frames]);
  useEffect(()=>{
