@@ -368,3 +368,15 @@ body,.shell,.main{background:#0b0f14}
 @media(max-height:650px){
  .storyboard-workspace .storyboard-grid{max-height:calc(100dvh - 190px);min-height:180px}
 }
+
+
+/* Storyboard image reference fills preview without changing card dimensions */
+.storyboard-workspace .storyboard-frame-preview{overflow:hidden}
+.storyboard-workspace .storyboard-preview-center:has(.storyboard-attached-image){
+ position:absolute;inset:0;margin:0;display:block;pointer-events:none;
+}
+.storyboard-workspace .storyboard-preview-center .storyboard-attached-image{
+ width:100%;height:100%;object-fit:contain;display:block;background:#0b1219;
+}
+.storyboard-workspace .storyboard-preview-top,.storyboard-workspace .storyboard-preview-bottom{position:relative;z-index:1}
+.storyboard-workspace .storyboard-preview-top>span,.storyboard-workspace .storyboard-preview-bottom{filter:drop-shadow(0 1px 3px #000)}
