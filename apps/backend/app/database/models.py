@@ -82,3 +82,33 @@ class Asset(Base):
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class Scene(Base):
+    __tablename__ = "scenes"
+    __table_args__ = (UniqueConstraint("episode_id", "number", name="uq_scenes_episode_number"), CheckConstraint("number > 0", name="ck_scenes_number_positive"))
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    episode_id: Mapped[str] = mapped_column(String(36), ForeignKey("episodes.id", ondelete="CASCADE"), nullable=False, index=True)
+    number: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    location: Mapped[str] = mapped_column(String(160), nullable=False, default="")
+    time_of_day: Mapped[str] = mapped_column(String(80), nullable=False, default="")
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="draft")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+class Shot(Base):
+    __tablename__ = "shots"
+    __table_args__ = (UniqueConstraint("scene_id", "number", name="uq_shots_scene_number"), CheckConstraint("number > 0", name="ck_shots_number_positive"), CheckConstraint("duration_frames > 0", name="ck_shots_duration_positive"))
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    scene_id: Mapped[str] = mapped_column(String(36), ForeignKey("scenes.id", ondelete="CASCADE"), nullable=False, index=True)
+    number: Mapped[int] = mapped_column(Integer, nullable=False)
+    title: Mapped[str] = mapped_column(String(160), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    camera: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    action: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    duration_frames: Mapped[int] = mapped_column(Integer, nullable=False, default=72)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="draft")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
