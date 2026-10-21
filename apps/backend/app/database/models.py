@@ -196,3 +196,27 @@ class AnimationKeyframe(Base):
     easing: Mapped[str] = mapped_column(String(24), nullable=False, default="linear")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class VisualLayer(Base):
+    """Independent ordered visual asset overlay on a storyboard frame."""
+    __tablename__ = "visual_layers"
+    __table_args__ = (
+        UniqueConstraint("storyboard_frame_id", "layer_order", name="uq_visual_layers_frame_order"),
+        CheckConstraint("layer_order >= 0", name="ck_visual_layers_order_nonnegative"),
+        CheckConstraint("scale > 0 AND scale <= 10", name="ck_visual_layers_scale"),
+        CheckConstraint("opacity >= 0 AND opacity <= 1", name="ck_visual_layers_opacity"),
+    )
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    storyboard_frame_id: Mapped[str] = mapped_column(String(36), ForeignKey("storyboard_frames.id", ondelete="CASCADE"), nullable=False, index=True)
+    asset_id: Mapped[str] = mapped_column(String(36), ForeignKey("assets.id", ondelete="RESTRICT"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    layer_order: Mapped[int] = mapped_column(Integer, nullable=False)
+    position_x: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    position_y: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    scale: Mapped[float] = mapped_column(Float, nullable=False, default=1)
+    rotation: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    opacity: Mapped[float] = mapped_column(Float, nullable=False, default=1)
+    visible: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
