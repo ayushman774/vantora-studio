@@ -4,6 +4,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import tempfile
+import math
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
@@ -12,7 +13,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.v1.storyboards import parents
-from app.database.models import StoryboardFrame, Asset, AnimaticAudioClip, AudioAsset
+from app.database.models import StoryboardFrame, Asset, AnimaticAudioClip, AudioAsset, AnimationKeyframe
+from app.services.animation_interpolation import interpolate
 
 router = APIRouter(
     prefix="/projects/{project_id}/seasons/{season_id}/episodes/{episode_id}/scenes/{scene_id}/shots/{shot_id}",
@@ -93,11 +95,82 @@ def fade_filter(duration: int) -> str:
             f"fade=t=out:s={max(0, duration - length)}:n={length}")
 
 
-def render_mp4(sources: list[tuple[Path | None, int, str, int, str, str]], output: Path, ffmpeg: str) -> None:
+def apply_keyframe_transform(image, transform):
+    """Center-origin inverse affine mapping in output pixels."""
+    from PIL import Image
+    width, height = image.size
+    angle = math.radians(transform.rotation)
+    cosine, sine = math.cos(angle), math.sin(angle)
+    inverse = 1 / transform.scale
+    a, b = cosine * inverse, sine * inverse
+    d, e = -sine * inverse, cosine * inverse
+    cx, cy = width / 2, height / 2
+    tx, ty = transform.position_x, transform.position_y
+    coefficients = (a, b, cx - a * (cx + tx) - b * (cy + ty),
+                    d, e, cy - d * (cx + tx) - e * (cy + ty))
+    backdrop = (7, 11, 18)
+    output = image.transform((width, height), Image.Transform.AFFINE, coefficients,
+                             resample=Image.Resampling.BICUBIC, fillcolor=backdrop)
+    if transform.opacity < 1:
+        output = Image.blend(Image.new("RGB", (width, height), backdrop),
+                             output, transform.opacity)
+    return output
+
+
+def animate_segment(segment: Path, destination: Path, ffmpeg: str, duration: int, keyframes) -> None:
+    """Stream frames through Pillow without buffering the full shot."""
+    from PIL import Image
+    import time
+    size = 1920 * 1080 * 3
+    decoder = subprocess.Popen(
+        [ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin",
+         "-i", str(segment), "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+    )
+    encoder = subprocess.Popen(
+        [ffmpeg, "-hide_banner", "-loglevel", "error", "-nostdin", "-y",
+         "-f", "rawvideo", "-pix_fmt", "rgb24", "-s", "1920x1080",
+         "-r", str(FPS), "-i", "-", "-frames:v", str(duration),
+         "-an", "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+         "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(destination)],
+        stdin=subprocess.PIPE, stderr=subprocess.DEVNULL,
+    )
+    started = time.monotonic()
+    try:
+        for offset in range(duration):
+            if time.monotonic() - started > 600:
+                raise subprocess.TimeoutExpired("animation segment", 600)
+            chunks = bytearray()
+            while len(chunks) < size:
+                part = decoder.stdout.read(size - len(chunks))
+                if not part:
+                    raise OSError("FFmpeg decoded fewer frames than expected")
+                chunks.extend(part)
+            image = Image.frombytes("RGB", (1920, 1080), bytes(chunks))
+            transformed = apply_keyframe_transform(image, interpolate(keyframes, offset))
+            encoder.stdin.write(transformed.tobytes())
+        encoder.stdin.close()
+        if encoder.wait(timeout=120) != 0 or decoder.wait(timeout=120) != 0:
+            raise OSError("FFmpeg animation pipeline failed")
+    finally:
+        if decoder.poll() is None:
+            decoder.kill()
+        if encoder.poll() is None:
+            encoder.kill()
+        decoder.wait()
+        encoder.wait()
+        if decoder.stdout:
+            decoder.stdout.close()
+        if encoder.stdin and not encoder.stdin.closed:
+            encoder.stdin.close()
+
+
+def render_mp4(sources: list[tuple[Path | None, int, str, int, str, str]], output: Path, ffmpeg: str, keyframes_by_index=None) -> None:
     """Encode deterministic 1080p/24fps segments, then concatenate without re-encoding."""
     with tempfile.TemporaryDirectory(prefix="vantora-render-") as temp:
         workspace = Path(temp)
         segments = []
+        keyframes_by_index = keyframes_by_index or {}
         for index, (source, duration, motion, intensity, easing, transition) in enumerate(sources):
             segment = workspace / f"part-{index:04d}.mp4"
             input_args = (
@@ -117,6 +190,11 @@ def render_mp4(sources: list[tuple[Path | None, int, str, int, str, str]], outpu
                 "-movflags", "+faststart", str(segment),
             ]
             subprocess.run(cmd, check=True, capture_output=True, timeout=600)
+            keyframes = keyframes_by_index.get(index, [])
+            if source is not None and keyframes:
+                animated_segment = workspace / f"animated-{index:04d}.mp4"
+                animate_segment(segment, animated_segment, ffmpeg, duration, keyframes)
+                segment = animated_segment
             if transition == "cross-dissolve" and segments:
                 still = workspace / f"outgoing-{index:04d}.png"
                 previous_duration = sources[index - 1][1]
@@ -208,6 +286,14 @@ def export_animatic(project_id: str, season_id: str, episode_id: str, scene_id: 
         ids = {f.asset_id for f in frames if f.asset_id}
         assets = {a.id: a for a in db.scalars(select(Asset).where(Asset.project_id == project_id, Asset.id.in_(ids))).all()}
         sources = preflight(frames, assets, request.app.state.data_root / "assets" / project_id)
+        frame_ids = [frame.id for frame in frames]
+        keyframes = db.scalars(select(AnimationKeyframe).where(
+            AnimationKeyframe.storyboard_frame_id.in_(frame_ids)
+        ).order_by(AnimationKeyframe.frame_offset)).all()
+        keyframes_by_index = {}
+        index_by_id = {frame.id: index for index, frame in enumerate(frames)}
+        for keyframe in keyframes:
+            keyframes_by_index.setdefault(index_by_id[keyframe.storyboard_frame_id], []).append(keyframe)
         clips = db.scalars(select(AnimaticAudioClip).where(AnimaticAudioClip.shot_id == shot_id).order_by(AnimaticAudioClip.start_frame)).all()
         audio_ids = {clip.audio_asset_id for clip in clips}
         audio_assets = {a.id: a for a in db.scalars(select(AudioAsset).where(AudioAsset.project_id == project_id, AudioAsset.id.in_(audio_ids))).all()}
@@ -220,12 +306,12 @@ def export_animatic(project_id: str, season_id: str, episode_id: str, scene_id: 
         if plan:
             video_only = exports / f"animatic-video-{uuid4().hex}.mp4"
             try:
-                render_mp4(sources, video_only, ffmpeg)
+                render_mp4(sources, video_only, ffmpeg, keyframes_by_index)
                 mux_audio(video_only, output, ffmpeg, plan, total_frames)
             finally:
                 video_only.unlink(missing_ok=True)
         else:
-            render_mp4(sources, output, ffmpeg)
+            render_mp4(sources, output, ffmpeg, keyframes_by_index)
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
         output.unlink(missing_ok=True)
         stderr = getattr(exc, "stderr", b"") or b""
