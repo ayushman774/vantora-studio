@@ -86,6 +86,12 @@ def create_keyframe(project_id: str, season_id: str, episode_id: str, scene_id: 
         db.refresh(item)
         return item
 
+@router.get("/{keyframe_id}", response_model=KeyframeOut)
+def get_keyframe(project_id: str, season_id: str, episode_id: str, scene_id: str, shot_id: str, frame_id: str, keyframe_id: str, request: Request):
+    with Session(request.app.state.engine) as db:
+        scope(db, project_id, season_id, episode_id, scene_id, shot_id, frame_id)
+        return keyframe_or_404(db, frame_id, keyframe_id)
+
 @router.patch("/{keyframe_id}", response_model=KeyframeOut)
 def update_keyframe(project_id: str, season_id: str, episode_id: str, scene_id: str, shot_id: str, frame_id: str, keyframe_id: str, payload: KeyframeUpdate, request: Request):
     with Session(request.app.state.engine) as db:
