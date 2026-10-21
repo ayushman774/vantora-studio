@@ -100,7 +100,7 @@ export default function VisualLayerEditor({scope,assets,frameTitle,onBack}:{
       <label>Stack order<input type="number" min={0} step={1} value={draft.layer_order} onChange={e=>numeric("layer_order",Number(e.target.value))}/></label>
       <label>X position<input type="number" min={-10000} max={10000} value={draft.position_x} onChange={e=>numeric("position_x",Number(e.target.value))}/></label>
       <label>Y position<input type="number" min={-10000} max={10000} value={draft.position_y} onChange={e=>numeric("position_y",Number(e.target.value))}/></label>
-      <label>Scale<input type="number" min={0.01} max={10} step={0.05} value={draft.scale} onChange={e=>numeric("scale",Number(e.target.value))}/></label>
+      <label>Scale<input type="number" min={0.01} max={10} step="any" value={draft.scale} onChange={e=>numeric("scale",Number(e.target.value))}/></label>
       <label>Rotation (°)<input type="number" min={-3600} max={3600} value={draft.rotation} onChange={e=>numeric("rotation",Number(e.target.value))}/></label>
       <label>Opacity<input type="number" min={0} max={1} step={0.05} value={draft.opacity} onChange={e=>numeric("opacity",Number(e.target.value))}/></label>
      </div>
