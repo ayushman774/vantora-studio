@@ -34,6 +34,7 @@ def test_keyframe_crud_and_scoping(tmp_path):
         assert created.status_code == 201, created.text
         keyframe_id = created.json()["id"]
         assert created.json()["position_x"] == 10
+        assert client.get(root+"/"+keyframe_id).json()["position_x"] == 10
         assert client.post(root, json={"frame_offset": 0}).status_code == 409
         assert client.post(root, json={"frame_offset": 48}).status_code == 422
         assert client.post(root, json={"frame_offset": -1}).status_code == 422
