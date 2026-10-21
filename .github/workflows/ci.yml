@@ -1,0 +1,47 @@
+name: Vantora Studio CI
+
+on:
+  push:
+    branches:
+      - main
+      - feature/audio-production-v015
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install backend and test dependencies
+        run: python -m pip install -e ".[dev]"
+      - name: Compile backend
+        run: python -m compileall -q app tests
+      - name: Run tests
+        run: python -m pytest -q
+
+  desktop:
+    name: Desktop TypeScript and Vite build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Build desktop UI
+        run: npm run build

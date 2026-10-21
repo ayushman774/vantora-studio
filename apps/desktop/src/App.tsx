@@ -3,12 +3,14 @@ import { Activity, Clapperboard, Film, FolderOpen, LayoutDashboard, Settings2, S
 import { getBackendHealth, type HealthState } from "./api";
 import Projects from "./ProjectLibrary";
 import AssetLibrary from "./AssetLibrary";
+import AudioLibrary from "./AudioLibrary";
 
 const pages = [
   { name: "Overview", icon: LayoutDashboard },
   { name: "Projects", icon: FolderOpen },
   { name: "Production", icon: Clapperboard },
   { name: "Assets", icon: Film },
+  { name: "Audio", icon: Film },
   { name: "Settings", icon: Settings2 },
 ] as const;
 type Page = (typeof pages)[number]["name"];
@@ -33,7 +35,7 @@ export default function App() {
         <div className="sidebar-bottom"><div className="version">VANTORA STUDIO · LOCAL</div><button type="button" className="health" onClick={refreshHealth} title="Recheck backend connection"><span className={health.status === "online" ? "dot online" : "dot"} /> <span>{health.detail}</span><Activity size={15}/></button></div>
       </aside>
       <main className="main"><header className="topbar"><div className="topbar-breadcrumb"><span>Workspace</span><ChevronRight size={14}/><strong>{page}</strong></div><div className="topbar-status"><HardDrive size={14}/><span>Local workspace</span><span className={health.status === "online" ? "dot online" : "dot"} aria-label={health.status === "online" ? "Backend online" : "Backend offline"}/></div></header>
-        <div className="content">{page === "Projects" ? <Projects /> : page === "Assets" ? <AssetLibrary /> : <><div className="eyebrow">STUDIO OVERVIEW</div><h1>{page === "Overview" ? "Production overview" : page}</h1><p className="intro">{page === "Overview" ? "Manage your local creative projects and production workflows from one place." : "This module is planned for a future production milestone."}</p>
+        <div className="content">{page === "Projects" ? <Projects /> : page === "Assets" ? <AssetLibrary /> : page === "Audio" ? <AudioLibrary /> : <><div className="eyebrow">STUDIO OVERVIEW</div><h1>{page === "Overview" ? "Production overview" : page}</h1><p className="intro">{page === "Overview" ? "Manage your local creative projects and production workflows from one place." : "This module is planned for a future production milestone."}</p>
           {page === "Overview" ? <div className="feature-grid"><section className="feature-card primary"><div className="card-icon"><Clapperboard size={24}/></div><div className="card-kicker">PRODUCTION WORKSPACE</div><h2>Production tools</h2><p>Shot planning and creative automation will appear here as these features are implemented.</p><span className="coming">COMING IN A FUTURE MILESTONE →</span></section><section className="feature-card"><div className="card-icon muted"><FolderOpen size={23}/></div><div className="card-kicker">PROJECT LIBRARY</div><h2>Manage your projects</h2><p>Open Projects to manage seasons, episodes, character profiles, and reference images.</p><button className="secondary-action" type="button" onClick={() => setPage("Projects")}>Open projects <ChevronRight size={15}/></button></section></div> : <section className="feature-card placeholder"><Sparkles size={30}/><h2>{page} is coming next.</h2><p>The foundation is intentionally small and ready to grow.</p></section>}
           <div className="status-panel"><div><span className={health.status === "online" ? "dot online" : "dot"}/><strong>Local backend</strong><span className="status-detail">{health.detail}</span></div><button type="button" onClick={refreshHealth}>Check connection</button></div>
         </>}
