@@ -30,3 +30,6 @@ router.include_router(audio_assets_router)
 
 from app.api.v1.animatic_audio import router as animatic_audio_router
 router.include_router(animatic_audio_router)
+
+from app.api.v1.animation_keyframes import router as animation_keyframes_router
+router.include_router(animation_keyframes_router)
