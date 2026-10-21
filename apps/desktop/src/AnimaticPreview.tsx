@@ -4,6 +4,8 @@ import {assetImageUrl,type Asset} from "./assetsApi";
 import type {StoryboardFrame} from "./storyboardApi";
 import {audioFileUrl,type AudioAsset} from "./audioApi";
 import type {AudioClip} from "./animaticAudioApi";
+import type {AnimationKeyframe} from "./animationKeyframesApi";
+import {interpolateKeyframes,cssTransform} from "./animationInterpolation";
 
 function ease(t:number,kind:StoryboardFrame["motion_easing"]){const x=Math.max(0,Math.min(1,t));return kind==="ease-in"?x*x:kind==="ease-out"?1-(1-x)*(1-x):kind==="ease-in-out"?x*x*(3-2*x):x;}
 function cameraTransform(frame:StoryboardFrame,progress:number){
@@ -20,7 +22,7 @@ function cameraTransform(frame:StoryboardFrame,progress:number){
  }
 }
 const FPS=24; // v0.12 uses a fixed preview rate; project FPS support can follow.
-export default function AnimaticPreview({projectId,frames,assets,audioAssets=[],audioClips=[]}:{projectId:string;frames:StoryboardFrame[];assets:Asset[];audioAssets?:AudioAsset[];audioClips?:AudioClip[]}){
+export default function AnimaticPreview({projectId,frames,assets,keyframesByFrame={},audioAssets=[],audioClips=[]}:{projectId:string;frames:StoryboardFrame[];assets:Asset[];keyframesByFrame?:Record<string,AnimationKeyframe[]>;audioAssets?:AudioAsset[];audioClips?:AudioClip[]}){
  const audioNodes=useRef<Map<string,HTMLAudioElement>>(new Map());
  const ordered=useMemo(()=>[...frames].sort((a,b)=>a.number-b.number||a.id.localeCompare(b.id)),[frames]);
  const starts=useMemo(()=>{let offset=0;return ordered.map(frame=>{const start=offset;offset+=frame.hold_frames;return start;});},[ordered]);
@@ -33,6 +35,7 @@ export default function AnimaticPreview({projectId,frames,assets,audioAssets=[],
  const elapsed=position-(starts[frameIndex]??0);
  const progress=Math.min(1,Math.max(0,elapsed/Math.max(1,(current?.hold_frames??1)-1)));
  const transform=cameraTransform(current,progress);
+ const animated=interpolateKeyframes(keyframesByFrame[current?.id]??[],elapsed);
  const previous=frameIndex>0?ordered[frameIndex-1]:null;
  // Blend during the first up-to-eight frames of the incoming frame. The outgoing
  // still is held at its final camera position; total timeline duration is unchanged.
@@ -41,6 +44,7 @@ export default function AnimaticPreview({projectId,frames,assets,audioAssets=[],
  const incomingOpacity=dissolving?(elapsed+1)/(dissolveLength+1):1;
  const previousHasImage=previous?.asset_id&&assets.some(asset=>asset.id===previous.asset_id);
  const previousTransform=previous?cameraTransform(previous,1):"none";
+ const outgoingAnimated=previous?interpolateKeyframes(keyframesByFrame[previous.id]??[],previous.hold_frames-1):null;
  const edge=Math.min(elapsed,Math.max(0,(current?.hold_frames??1)-1-elapsed));
  const opacity=current?.transition==="fade"?Math.min(1,(edge+1)/Math.max(1,Math.min(8,Math.floor((current?.hold_frames??1)/4)))):1;
  useEffect(()=>{setPlaying(false);setPosition(0);clock.current=null;},[projectId,frames]);
@@ -80,9 +84,9 @@ export default function AnimaticPreview({projectId,frames,assets,audioAssets=[],
  if(!ordered.length)return null;
  const hasImage=current.asset_id&&assets.some(asset=>asset.id===current.asset_id);
  return <section className="animatic-panel" aria-label="Animatic preview">
-  <div className="animatic-heading"><div><span className="eyebrow">V0.14 / ADVANCED ANIMATIC</span><h3>Storyboard playback</h3></div><span>{FPS} FPS · {(total/FPS).toFixed(2)}s</span></div>
+  <div className="animatic-heading"><div><span className="eyebrow">V0.16 / ANIMATION PREVIEW</span><h3>Storyboard playback</h3></div><span>{FPS} FPS · {(total/FPS).toFixed(2)}s</span></div>
   <div className="animatic-audio-elements" aria-hidden="true">{audioClips.filter(clip=>audioAssets.some(asset=>asset.id===clip.audio_asset_id)).map(clip=><audio key={clip.id} preload="auto" src={audioFileUrl(projectId,clip.audio_asset_id)} ref={node=>{if(node)audioNodes.current.set(clip.id,node);else audioNodes.current.delete(clip.id);}}/>)}</div>
-  <div className="animatic-screen">{dissolving&&<div className="animatic-layer animatic-outgoing">{previousHasImage?<img src={assetImageUrl(projectId,previous!.asset_id!)} alt="" aria-hidden="true" style={{transform:previousTransform}}/>:<div className="animatic-placeholder"><Film size={34}/><span>Visual pending</span></div>}</div>}<div className="animatic-layer animatic-incoming" style={{opacity:incomingOpacity*(current.transition==="fade"?opacity:1)}}>{hasImage?<img src={assetImageUrl(projectId,current.asset_id!)} alt={current.title} style={{transform}}/>:<div className="animatic-placeholder"><Film size={34}/><span>Visual pending</span></div>}</div><div className="animatic-screen-caption"><span>FRAME {String(current.number).padStart(2,"0")} · {current.title}</span><span>{(position/FPS).toFixed(2)} / {(total/FPS).toFixed(2)}s</span></div></div>
+  <div className="animatic-screen">{dissolving&&<div className="animatic-layer animatic-outgoing">{previousHasImage?<div style={{width:"100%",height:"100%",transform:previousTransform}}><img src={assetImageUrl(projectId,previous!.asset_id!)} alt="" aria-hidden="true" style={{transform:cssTransform(outgoingAnimated!),opacity:outgoingAnimated!.opacity}}/></div>:<div className="animatic-placeholder"><Film size={34}/><span>Visual pending</span></div>}</div>}<div className="animatic-layer animatic-incoming" style={{opacity:incomingOpacity*(current.transition==="fade"?opacity:1)}}>{hasImage?<div style={{width:"100%",height:"100%",transform}}><img src={assetImageUrl(projectId,current.asset_id!)} alt={current.title} style={{transform:cssTransform(animated),opacity:animated.opacity}}/></div>:<div className="animatic-placeholder"><Film size={34}/><span>Visual pending</span></div>}</div><div className="animatic-screen-caption"><span>FRAME {String(current.number).padStart(2,"0")} · {current.title}</span><span>{(position/FPS).toFixed(2)} / {(total/FPS).toFixed(2)}s</span></div></div>
   <div className="animatic-motion-settings"><span>Camera: {current.camera_motion.replaceAll("-"," ")} · {current.motion_intensity}% · {current.motion_easing.replaceAll("-"," ")} · Transition: {current.transition}</span><small>Edit a storyboard frame to change its saved camera motion and transition.</small></div>
   <div className="animatic-controls"><button type="button" className="secondary-action icon-action" aria-label="Previous frame" onClick={()=>seek(starts[Math.max(0,frameIndex-1)])}><SkipBack size={16}/></button><button type="button" className="primary-action" onClick={()=>{if(position>=total-1)setPosition(0);setPlaying(!playing);}}>{playing?<><Pause size={16}/> Pause</>:<><Play size={16}/> Play</>}</button><button type="button" className="secondary-action icon-action" aria-label="Next frame" onClick={()=>seek(starts[Math.min(starts.length-1,frameIndex+1)])}><SkipForward size={16}/></button><button type="button" className="secondary-action icon-action" aria-label="Restart" onClick={()=>seek(0)}><RotateCcw size={16}/></button></div>
   <input className="animatic-scrubber" aria-label="Seek animatic" type="range" min={0} max={Math.max(0,total-1)} value={position} onChange={e=>seek(Number(e.target.value))}/>
