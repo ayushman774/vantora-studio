@@ -35,7 +35,7 @@ export default function AnimaticPreview({projectId,frames,assets,keyframesByFram
  const elapsed=position-(starts[frameIndex]??0);
  const progress=Math.min(1,Math.max(0,elapsed/Math.max(1,(current?.hold_frames??1)-1)));
  const transform=cameraTransform(current,progress);
- const animated=interpolateKeyframes(keyframesByFrame[current?.id]??[],elapsed);
+ const animated=interpolateKeyframes(keyframesByFrame[current?.id??""]??[],elapsed);
  const previous=frameIndex>0?ordered[frameIndex-1]:null;
  // Blend during the first up-to-eight frames of the incoming frame. The outgoing
  // still is held at its final camera position; total timeline duration is unchanged.
