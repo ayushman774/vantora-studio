@@ -13,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.v1.storyboards import parents
-from app.database.models import StoryboardFrame, Asset, AnimaticAudioClip, AudioAsset, AnimationKeyframe
+from app.database.models import StoryboardFrame, Asset, AnimaticAudioClip, AudioAsset, AnimationKeyframe, VisualLayer
 from app.services.animation_interpolation import interpolate
 
 router = APIRouter(
@@ -117,7 +117,50 @@ def apply_keyframe_transform(image, transform):
     return output
 
 
-def animate_segment(segment: Path, destination: Path, ffmpeg: str, duration: int, keyframes) -> None:
+
+def composite_visual_layers(image, layers, asset_paths):
+    """Composite ordered RGBA overlays on the 1920x1080 scene.
+
+    Layer position is measured in output pixels. Transparent PNGs retain alpha.
+    The storyboard base remains untouched when no layers are visible.
+    """
+    from PIL import Image
+    if not layers:
+        return image
+    width, height = image.size
+    canvas = image.convert("RGBA")
+    for layer in sorted(layers, key=lambda item: (item.layer_order, item.id)):
+        if not layer.visible or layer.opacity <= 0:
+            continue
+        path = asset_paths.get(layer.asset_id)
+        if path is None:
+            raise OSError("Visual layer references a missing image asset")
+        with Image.open(path) as original:
+            overlay = original.convert("RGBA")
+        # Match preview: contain image within full scene before layer transform.
+        ratio = min(width / overlay.width, height / overlay.height)
+        dimensions = (max(1, round(overlay.width * ratio)), max(1, round(overlay.height * ratio)))
+        overlay = overlay.resize(dimensions, Image.Resampling.LANCZOS)
+        scene = Image.new("RGBA", (width, height))
+        scene.alpha_composite(overlay, ((width - dimensions[0]) // 2, (height - dimensions[1]) // 2))
+        angle = math.radians(layer.rotation)
+        co, si = math.cos(angle), math.sin(angle)
+        inv = 1 / layer.scale
+        a, b, d, e = co * inv, si * inv, -si * inv, co * inv
+        cx, cy = width / 2, height / 2
+        tx, ty = layer.position_x, layer.position_y
+        matrix = (a, b, cx - a * (cx + tx) - b * (cy + ty),
+                  d, e, cy - d * (cx + tx) - e * (cy + ty))
+        moved = scene.transform((width, height), Image.Transform.AFFINE, matrix,
+                                resample=Image.Resampling.BICUBIC, fillcolor=(0, 0, 0, 0))
+        if layer.opacity < 1:
+            alpha = moved.getchannel("A").point(lambda value: round(value * layer.opacity))
+            moved.putalpha(alpha)
+        canvas = Image.alpha_composite(canvas, moved)
+    return canvas.convert("RGB")
+
+
+def animate_segment(segment: Path, destination: Path, ffmpeg: str, duration: int, keyframes, layers=(), layer_paths=None) -> None:
     """Stream frames through Pillow without buffering the full shot."""
     from PIL import Image
     import time
@@ -147,7 +190,9 @@ def animate_segment(segment: Path, destination: Path, ffmpeg: str, duration: int
                     raise OSError("FFmpeg decoded fewer frames than expected")
                 chunks.extend(part)
             image = Image.frombytes("RGB", (1920, 1080), bytes(chunks))
-            transformed = apply_keyframe_transform(image, interpolate(keyframes, offset))
+            transformed = apply_keyframe_transform(image, interpolate(keyframes, offset)) if keyframes else image
+            if layers:
+                transformed = composite_visual_layers(transformed, layers, layer_paths or {})
             encoder.stdin.write(transformed.tobytes())
         encoder.stdin.close()
         if encoder.wait(timeout=120) != 0 or decoder.wait(timeout=120) != 0:
@@ -165,12 +210,13 @@ def animate_segment(segment: Path, destination: Path, ffmpeg: str, duration: int
             encoder.stdin.close()
 
 
-def render_mp4(sources: list[tuple[Path | None, int, str, int, str, str]], output: Path, ffmpeg: str, keyframes_by_index=None) -> None:
+def render_mp4(sources: list[tuple[Path | None, int, str, int, str, str]], output: Path, ffmpeg: str, keyframes_by_index=None, layers_by_index=None, layer_paths=None) -> None:
     """Encode deterministic 1080p/24fps segments, then concatenate without re-encoding."""
     with tempfile.TemporaryDirectory(prefix="vantora-render-") as temp:
         workspace = Path(temp)
         segments = []
         keyframes_by_index = keyframes_by_index or {}
+        layers_by_index = layers_by_index or {}
         for index, (source, duration, motion, intensity, easing, transition) in enumerate(sources):
             segment = workspace / f"part-{index:04d}.mp4"
             input_args = (
@@ -191,9 +237,10 @@ def render_mp4(sources: list[tuple[Path | None, int, str, int, str, str]], outpu
             ]
             subprocess.run(cmd, check=True, capture_output=True, timeout=600)
             keyframes = keyframes_by_index.get(index, [])
-            if source is not None and keyframes:
+            layers = layers_by_index.get(index, [])
+            if keyframes or any(layer.visible for layer in layers):
                 animated_segment = workspace / f"animated-{index:04d}.mp4"
-                animate_segment(segment, animated_segment, ffmpeg, duration, keyframes)
+                animate_segment(segment, animated_segment, ffmpeg, duration, keyframes, layers, layer_paths)
                 segment = animated_segment
             if transition == "cross-dissolve" and segments:
                 still = workspace / f"outgoing-{index:04d}.png"
@@ -285,13 +332,34 @@ def export_animatic(project_id: str, season_id: str, episode_id: str, scene_id: 
         frames = db.scalars(select(StoryboardFrame).where(StoryboardFrame.shot_id == shot_id).order_by(StoryboardFrame.number)).all()
         ids = {f.asset_id for f in frames if f.asset_id}
         assets = {a.id: a for a in db.scalars(select(Asset).where(Asset.project_id == project_id, Asset.id.in_(ids))).all()}
-        sources = preflight(frames, assets, request.app.state.data_root / "assets" / project_id)
+        frame_ids = [frame.id for frame in frames]
+        visual_layers = db.scalars(select(VisualLayer).where(
+            VisualLayer.storyboard_frame_id.in_(frame_ids)
+        ).order_by(VisualLayer.layer_order)).all()
+        layer_ids = {layer.asset_id for layer in visual_layers if layer.visible}
+        layer_assets = {a.id: a for a in db.scalars(select(Asset).where(
+            Asset.project_id == project_id, Asset.id.in_(layer_ids)
+        )).all()}
+        asset_folder = request.app.state.data_root / "assets" / project_id
+        layer_paths = {}
+        for asset_id in layer_ids:
+            asset = layer_assets.get(asset_id)
+            if asset is None or not asset.media_type.startswith("image/"):
+                raise HTTPException(422, "A visual layer references an unavailable project image.")
+            path = asset_folder / asset.filename
+            if not path.is_file():
+                raise HTTPException(422, "A visual layer image is missing on disk.")
+            layer_paths[asset_id] = path
+        sources = preflight(frames, assets, asset_folder)
         frame_ids = [frame.id for frame in frames]
         keyframes = db.scalars(select(AnimationKeyframe).where(
             AnimationKeyframe.storyboard_frame_id.in_(frame_ids)
         ).order_by(AnimationKeyframe.frame_offset)).all()
         keyframes_by_index = {}
         index_by_id = {frame.id: index for index, frame in enumerate(frames)}
+        layers_by_index = {}
+        for layer in visual_layers:
+            layers_by_index.setdefault(index_by_id[layer.storyboard_frame_id], []).append(layer)
         for keyframe in keyframes:
             keyframes_by_index.setdefault(index_by_id[keyframe.storyboard_frame_id], []).append(keyframe)
         clips = db.scalars(select(AnimaticAudioClip).where(AnimaticAudioClip.shot_id == shot_id).order_by(AnimaticAudioClip.start_frame)).all()
@@ -306,12 +374,12 @@ def export_animatic(project_id: str, season_id: str, episode_id: str, scene_id: 
         if plan:
             video_only = exports / f"animatic-video-{uuid4().hex}.mp4"
             try:
-                render_mp4(sources, video_only, ffmpeg, keyframes_by_index)
+                render_mp4(sources, video_only, ffmpeg, keyframes_by_index, layers_by_index, layer_paths)
                 mux_audio(video_only, output, ffmpeg, plan, total_frames)
             finally:
                 video_only.unlink(missing_ok=True)
         else:
-            render_mp4(sources, output, ffmpeg, keyframes_by_index)
+            render_mp4(sources, output, ffmpeg, keyframes_by_index, layers_by_index, layer_paths)
     except (subprocess.CalledProcessError, subprocess.TimeoutExpired, OSError) as exc:
         output.unlink(missing_ok=True)
         stderr = getattr(exc, "stderr", b"") or b""
