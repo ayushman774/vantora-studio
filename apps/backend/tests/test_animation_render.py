@@ -35,3 +35,40 @@ def test_affine_rotation_is_bounded():
     image=Image.new("RGB",(80,60),(255,0,0))
     output=apply_keyframe_transform(image,Transform(scale=10,rotation=30,position_y=10))
     assert output.size == image.size
+
+
+def test_visual_layer_compositing_preserves_base_and_transparency(tmp_path):
+    from app.api.v1.animatic_export import composite_visual_layers
+    image = Image.new("RGB", (100, 60), (10, 20, 30))
+    overlay = Image.new("RGBA", (20, 20), (255, 0, 0, 0))
+    for x in range(5, 15):
+        for y in range(5, 15):
+            overlay.putpixel((x, y), (255, 0, 0, 255))
+    path = tmp_path / "hero.png"
+    overlay.save(path)
+    layer = SimpleNamespace(id="layer", asset_id="hero", layer_order=1, visible=True,
+                            opacity=1, position_x=0, position_y=0, rotation=0, scale=1)
+    output = composite_visual_layers(image, [layer], {"hero": path})
+    assert output.getpixel((0, 0)) == (10, 20, 30)
+    assert output.getpixel((50, 30)) == (255, 0, 0)
+    assert composite_visual_layers(image, [layer], {"hero": path}).size == image.size
+    layer.visible = False
+    assert composite_visual_layers(image, [layer], {"hero": path}).getpixel((50, 30)) == (10, 20, 30)
+
+
+def test_visual_layer_opacity_and_order(tmp_path):
+    from app.api.v1.animatic_export import composite_visual_layers
+    background = Image.new("RGB", (80, 60), (0, 0, 255))
+    paths = {}
+    for key, color in (("a", (255, 0, 0, 255)), ("b", (0, 255, 0, 255))):
+        path = tmp_path / (key + ".png")
+        Image.new("RGBA", (80, 60), color).save(path)
+        paths[key] = path
+    def layer(key, order, opacity=1):
+        return SimpleNamespace(id=key, asset_id=key, layer_order=order, visible=True,
+                               opacity=opacity, position_x=0, position_y=0, rotation=0, scale=1)
+    output = composite_visual_layers(background, [layer("b", 2), layer("a", 1)], paths)
+    assert output.getpixel((40, 30)) == (0, 255, 0)
+    faded = composite_visual_layers(background, [layer("a", 1, 0.5)], paths)
+    red, green, blue = faded.getpixel((40, 30))
+    assert 120 <= red <= 135 and green == 0 and 120 <= blue <= 135
