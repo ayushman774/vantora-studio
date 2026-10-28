@@ -131,7 +131,7 @@ def composite_visual_layers(image, layers, asset_paths, keyframes_by_layer=None,
     canvas = image.convert("RGBA")
     keyframes_by_layer = keyframes_by_layer or {}
     for layer in sorted(layers, key=lambda item: (item.layer_order, item.id)):
-        if not layer.visible or layer.opacity <= 0:
+        if not layer.visible:
             continue
         path = asset_paths.get(layer.asset_id)
         if path is None:
