@@ -1,7 +1,8 @@
 import {useEffect,useState,type FormEvent} from "react";
 import {ArrowLeft,Layers,Plus,Trash2,Eye,EyeOff,Save} from "lucide-react";
 import {assetImageUrl,type Asset} from "./assetsApi";
-import type {KeyframeScope} from "./animationKeyframesApi";
+import type {KeyframeScope,KeyframeInput} from "./animationKeyframesApi";
+import {listLayerKeyframes,createLayerKeyframe,updateLayerKeyframe,deleteLayerKeyframe,type LayerKeyframe} from "./layerKeyframesApi";
 import {
  listVisualLayers,createVisualLayer,updateVisualLayer,deleteVisualLayer,
  type VisualLayer,type VisualLayerInput
@@ -11,13 +12,15 @@ const empty=(asset:Asset,order:number):VisualLayerInput=>({
  asset_id:asset.id,name:asset.title,layer_order:order,
  position_x:0,position_y:0,scale:1,rotation:0,opacity:1,visible:true
 });
-export default function VisualLayerEditor({scope,assets,frameTitle,onBack}:{
- scope:KeyframeScope;assets:Asset[];frameTitle:string;onBack:()=>void
+export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,onBack}:{
+ scope:KeyframeScope;assets:Asset[];frameTitle:string;holdFrames:number;onBack:()=>void
 }){
  const [layers,setLayers]=useState<VisualLayer[]>([]);
  const [selected,setSelected]=useState<string|null>(null);
  const [draft,setDraft]=useState<VisualLayerInput|null>(null);
  const [busy,setBusy]=useState(false);
+ const [points,setPoints]=useState<LayerKeyframe[]>([]);
+ const [keyDraft,setKeyDraft]=useState<(KeyframeInput&{id?:string})|null>(null);
  const [loading,setLoading]=useState(true);
  const [error,setError]=useState("");
  const images=assets.filter(asset=>asset.media_type.startsWith("image/"));
@@ -34,7 +37,8 @@ export default function VisualLayerEditor({scope,assets,frameTitle,onBack}:{
    .finally(()=>{if(active)setLoading(false);});
   return()=>{active=false;};
  },[scope.projectId,scope.seasonId,scope.episodeId,scope.sceneId,scope.shotId,scope.frameId]);
- function select(layer:VisualLayer){setSelected(layer.id);setDraft({
+ async function loadPoints(id:string){try{setPoints(await listLayerKeyframes(scope,id));}catch(e){setError(e instanceof Error?e.message:"Could not load layer keyframes");}}
+ function select(layer:VisualLayer){setSelected(layer.id);setKeyDraft(null);setPoints([]);void loadPoints(layer.id);setDraft({
   asset_id:layer.asset_id,name:layer.name,layer_order:layer.layer_order,
   position_x:layer.position_x,position_y:layer.position_y,scale:layer.scale,
   rotation:layer.rotation,opacity:layer.opacity,visible:layer.visible
@@ -42,7 +46,7 @@ export default function VisualLayerEditor({scope,assets,frameTitle,onBack}:{
  function add(){
   if(!images.length){setError("Import an image into the Asset Library first.");return;}
   const next=Math.max(-1,...layers.map(layer=>layer.layer_order))+1;
-  setSelected(null);setDraft(empty(images[0],next));setError("");
+  setSelected(null);setKeyDraft(null);setPoints([]);setDraft(empty(images[0],next));setError("");
  }
  async function save(event:FormEvent){
   event.preventDefault();if(!draft||busy)return;
@@ -61,6 +65,30 @@ export default function VisualLayerEditor({scope,assets,frameTitle,onBack}:{
   setBusy(true);setError("");
   try{await deleteVisualLayer(scope,selected);await reload();setSelected(null);setDraft(null);}
   catch(e){setError(e instanceof Error?e.message:"Could not delete layer");}
+  finally{setBusy(false);}
+ }
+
+ function addPoint(){
+  if(!selected||!draft)return;
+  const used=new Set(points.map(point=>point.frame_offset));
+  const offset=Array.from({length:holdFrames},(_,i)=>i).find(i=>!used.has(i));
+  if(offset===undefined){setError("Every frame already has a keyframe.");return;}
+  setKeyDraft({frame_offset:offset,position_x:draft.position_x,position_y:draft.position_y,scale:draft.scale,rotation:draft.rotation,opacity:draft.opacity,easing:"linear"});
+ }
+ async function savePoint(e:FormEvent){
+  e.preventDefault();if(!selected||!keyDraft||busy)return;
+  const {id,...data}=keyDraft;
+  if(!Number.isInteger(data.frame_offset)||data.frame_offset<0||data.frame_offset>=holdFrames||data.scale<=0||data.scale>10||data.opacity<0||data.opacity>1||![data.position_x,data.position_y,data.scale,data.rotation,data.opacity].every(Number.isFinite)){setError("Check animation keyframe values.");return;}
+  setBusy(true);setError("");
+  try{if(id)await updateLayerKeyframe(scope,selected,id,data);else await createLayerKeyframe(scope,selected,data);await loadPoints(selected);setKeyDraft(null);}
+  catch(err){setError(err instanceof Error?err.message:"Could not save layer keyframe");}
+  finally{setBusy(false);}
+ }
+ async function removePoint(id:string){
+  if(!selected||busy||!window.confirm("Delete this layer keyframe?"))return;
+  setBusy(true);setError("");
+  try{await deleteLayerKeyframe(scope,selected,id);await loadPoints(selected);setKeyDraft(null);}
+  catch(err){setError(err instanceof Error?err.message:"Could not delete layer keyframe");}
   finally{setBusy(false);}
  }
  function numeric(key:"layer_order"|"position_x"|"position_y"|"scale"|"rotation"|"opacity",value:number){
@@ -109,6 +137,27 @@ export default function VisualLayerEditor({scope,assets,frameTitle,onBack}:{
       {selected&&<button className="danger-action" type="button" disabled={busy} onClick={()=>void remove()}><Trash2 size={15}/> Remove</button>}
      </div>
     </form>}
+
+    {selected&&<section className="ak-panel" style={{marginTop:20}}>
+     <div className="ak-section-head"><div><span className="eyebrow">INDEPENDENT ANIMATION</span><h3>Layer keyframes</h3></div>
+      <button type="button" className="secondary-action" disabled={busy||points.length>=holdFrames} onClick={addPoint}><Plus size={14}/> Add keyframe</button></div>
+     <p className="vl-note">Animate this layer only. Frame offsets run from 0 to {holdFrames-1} at 24 FPS. Save layer properties before adding keyframes.</p>
+     <div className="ak-list">{points.map(point=><article key={point.id} className="ak-item">
+      <div className="ak-item-info"><strong>Frame {point.frame_offset}</strong><div className="ak-values"><span>X {point.position_x}, Y {point.position_y}</span><span>{point.scale}× · {point.rotation}° · {Math.round(point.opacity*100)}%</span></div></div>
+      <div className="ak-actions"><button type="button" className="secondary-action" disabled={busy} onClick={()=>setKeyDraft({...point})}>Edit</button>
+      <button type="button" className="danger-action icon-action" disabled={busy} onClick={()=>void removePoint(point.id)}><Trash2 size={14}/></button></div>
+     </article>)}</div>
+     {keyDraft&&<form className="ak-form" onSubmit={e=>void savePoint(e)}>
+      <div className="vl-fields">
+       {(["frame_offset","position_x","position_y","scale","rotation","opacity"] as const).map(field=><label key={field}>{field.replaceAll("_"," ")}
+        <input required type="number" step={field==="frame_offset"?"1":"any"} min={field==="frame_offset"?0:field==="scale"?0.001:field==="opacity"?0:-10000} max={field==="frame_offset"?holdFrames-1:field==="scale"?10:field==="opacity"?1:10000} value={keyDraft[field]} onChange={e=>setKeyDraft(prev=>prev?{...prev,[field]:Number(e.target.value)}:prev)}/></label>)}
+      </div>
+      <label>Easing<select value={keyDraft.easing} onChange={e=>setKeyDraft({...keyDraft,easing:e.target.value as KeyframeInput["easing"]})}>
+       <option value="linear">Linear</option><option value="ease-in">Ease in</option><option value="ease-out">Ease out</option><option value="ease-in-out">Ease in / out</option>
+      </select></label>
+      <div className="vl-actions"><button type="submit" className="primary-action" disabled={busy}>Save keyframe</button><button type="button" className="secondary-action" onClick={()=>setKeyDraft(null)}>Cancel</button></div>
+     </form>}
+    </section>}
    </section>
   </div>
  </section>;
