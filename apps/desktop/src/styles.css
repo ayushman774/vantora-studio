@@ -628,3 +628,8 @@ body,.shell,.main{background:#0b0f14}
 .lt-marker{touch-action:none;cursor:grab;user-select:none}
 .lt-marker:active{cursor:grabbing}
 .lt-marker:disabled{opacity:.5;cursor:wait}
+
+/* v0.18 direct manipulation overlay */
+.vl-draggable-preview{position:relative;overflow:hidden;user-select:none}
+.vl-draggable-preview img{user-select:none;touch-action:none}
+.vl-preview-caption{position:absolute;bottom:8px;left:8px;z-index:2;background:rgba(7,17,26,.85);color:#e7f3e5;border:1px solid #405669;border-radius:7px;padding:5px 9px;font-size:11px;pointer-events:none;font-variant-numeric:tabular-nums}
