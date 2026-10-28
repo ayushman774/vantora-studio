@@ -1,5 +1,5 @@
-import {useEffect,useState,type FormEvent} from "react";
-import {ArrowLeft,Layers,Plus,Trash2,Eye,EyeOff,Save} from "lucide-react";
+import {useEffect,useState,useRef,type FormEvent} from "react";
+import {ArrowLeft,Layers,Plus,Trash2,Eye,EyeOff,Save,Undo2,Redo2} from "lucide-react";
 import {assetImageUrl,type Asset} from "./assetsApi";
 import LayerTimeline from "./LayerTimeline";
 import DraggableLayerPreview from "./DraggableLayerPreview";
@@ -11,6 +11,10 @@ import {
  type VisualLayer,type VisualLayerInput
 } from "./visualLayersApi";
 
+type HistoryAction=
+ |{kind:"move";layerId:string;keyframeId:string;before:number;after:number}
+ |{kind:"position";layerId:string;frame:number;before:{x:number;y:number}|null;after:{x:number;y:number};snapshot:KeyframeInput};
+const HISTORY_LIMIT=40;
 const empty=(asset:Asset,order:number):VisualLayerInput=>({
  asset_id:asset.id,name:asset.title,layer_order:order,
  position_x:0,position_y:0,scale:1,rotation:0,opacity:1,visible:true
@@ -22,6 +26,61 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
  const [selected,setSelected]=useState<string|null>(null);
  const [draft,setDraft]=useState<VisualLayerInput|null>(null);
  const [busy,setBusy]=useState(false);
+ const undoStack=useRef<HistoryAction[]>([]);
+ const redoStack=useRef<HistoryAction[]>([]);
+ const [historyVersion,setHistoryVersion]=useState(0);
+ const historyScope=useRef("");
+ const scopeKey=[scope.projectId,scope.seasonId,scope.episodeId,scope.sceneId,scope.shotId,scope.frameId].join("/");
+ if(historyScope.current!==scopeKey){historyScope.current=scopeKey;undoStack.current=[];redoStack.current=[];}
+ function record(action:HistoryAction){
+  undoStack.current=[...undoStack.current,action].slice(-HISTORY_LIMIT);
+  redoStack.current=[];setHistoryVersion(v=>v+1);
+ }
+ async function syncHistoryLayer(layerId:string){
+  const updated=await listLayerKeyframes(scope,layerId);
+  setTimelinePoints(previous=>({...previous,[layerId]:updated}));
+  if(selected===layerId){setPoints(updated);setKeyDraft(null);}
+ }
+ async function applyHistory(action:HistoryAction,undo:boolean){
+  const existing=await listLayerKeyframes(scope,action.layerId);
+  if(action.kind==="move"){
+   const point=existing.find(item=>item.id===action.keyframeId);
+   if(!point)throw new Error("Keyframe no longer exists. Undo history was cleared.");
+   const target=undo?action.before:action.after;
+   if(existing.some(item=>item.id!==point.id&&item.frame_offset===target))throw new Error("Target frame is occupied. Undo history was cleared.");
+   await updateLayerKeyframe(scope,action.layerId,point.id,{frame_offset:target});
+   setPlayhead(target);
+  }else{
+   const point=existing.find(item=>item.frame_offset===action.frame);
+   const target=undo?action.before:action.after;
+   if(target===null){
+    if(point)await deleteLayerKeyframe(scope,action.layerId,point.id);
+   }else if(point){
+    await updateLayerKeyframe(scope,action.layerId,point.id,{position_x:target.x,position_y:target.y});
+   }else{
+    await createLayerKeyframe(scope,action.layerId,{...action.snapshot,frame_offset:action.frame,position_x:target.x,position_y:target.y});
+   }
+   setPlayhead(action.frame);
+  }
+  await syncHistoryLayer(action.layerId);
+ }
+ async function historyStep(undo:boolean){
+  if(busy)return;
+  const source=undo?undoStack:redoStack,destination=undo?redoStack:undoStack;
+  const action=source.current[source.current.length-1];if(!action)return;
+  setBusy(true);setError("");
+  try{
+   await applyHistory(action,undo);
+   source.current=source.current.slice(0,-1);
+   destination.current=[...destination.current,action].slice(-HISTORY_LIMIT);
+   setHistoryVersion(v=>v+1);
+  }catch(err){
+   undoStack.current=[];redoStack.current=[];setHistoryVersion(v=>v+1);
+   setError(err instanceof Error?err.message:"Undo/redo failed. History was cleared.");
+   try{await syncHistoryLayer(action.layerId);}catch{/* retain original error */}
+  }finally{setBusy(false);}
+ }
+ void historyVersion;
  const [points,setPoints]=useState<LayerKeyframe[]>([]);
  const [timelinePoints,setTimelinePoints]=useState<Record<string,LayerKeyframe[]>>({});
  const [playhead,setPlayhead]=useState(0);
@@ -116,6 +175,7 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
    setPoints(updated);
    const edited=updated.find(point=>point.frame_offset===playhead);
    if(edited)setKeyDraft({...edited});
+   record({kind:"position",layerId,frame:playhead,before:exact?{x:exact.position_x,y:exact.position_y}:null,after:{x,y},snapshot:{frame_offset:playhead,position_x:motion.position_x,position_y:motion.position_y,scale:motion.scale,rotation:motion.rotation,opacity:motion.opacity,easing:exact?.easing??"linear"}});
   }catch(err){setError(err instanceof Error?err.message:"Could not save character position");}
   finally{setBusy(false);}
  }
@@ -132,6 +192,7 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
    if(selected===layerId)setPoints(updated);
    setPlayhead(targetFrame);
    if(selected===layerId&&keyDraft?.id===point.id)setKeyDraft(previous=>previous?{...previous,frame_offset:targetFrame}:previous);
+   record({kind:"move",layerId,keyframeId:point.id,before:point.frame_offset,after:targetFrame});
   }catch(err){setError(err instanceof Error?err.message:"Could not move keyframe");}
   finally{setBusy(false);}
  }
@@ -146,6 +207,11 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
    <button className="primary-action" type="button" disabled={loading||busy||!images.length} onClick={add}><Plus size={15}/> Add layer</button>
   </header>
   {error&&<div className="project-error" role="alert">{error}</div>}
+  <div className="vl-history-toolbar" aria-label="Animation history controls">
+   <button type="button" className="secondary-action" disabled={busy||undoStack.current.length===0} onClick={()=>void historyStep(true)}><Undo2 size={15}/> Undo animation</button>
+   <button type="button" className="secondary-action" disabled={busy||redoStack.current.length===0} onClick={()=>void historyStep(false)}><Redo2 size={15}/> Redo animation</button>
+   <span>Undo/redo tracks timeline keyframe moves and preview position changes during this editing session.</span>
+  </div>
   <LayerTimeline layers={layers} keyframes={timelinePoints} holdFrames={holdFrames} playhead={playhead} selectedLayerId={selected}
    onSeek={setPlayhead} busy={busy} onMoveKeyframe={movePoint} onSelectLayer={id=>{const layer=layers.find(item=>item.id===id);if(layer)select(layer);}}
    onSelectKeyframe={(id,point)=>{const layer=layers.find(item=>item.id===id);if(layer)select(layer);setKeyDraft({...point});}}/>
