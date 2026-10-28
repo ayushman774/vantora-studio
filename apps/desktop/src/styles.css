@@ -647,3 +647,6 @@ body,.shell,.main{background:#0b0f14}
 .vl-preset-fields input,.vl-preset-fields select{width:100%;min-width:0}
 .vl-motion-presets>.primary-action{justify-self:start}
 @media(max-width:680px){.vl-preset-fields{grid-template-columns:1fr 1fr}.vl-preset-fields label:first-child{grid-column:1/-1}}
+
+/* Motion preset save confirmation */
+.vl-success{padding:14px 18px;margin:12px 0;border-radius:10px;border:1px solid rgba(57,255,20,.35);background:rgba(57,255,20,.08);color:#b8ffa8;font-size:14px;line-height:1.5}
