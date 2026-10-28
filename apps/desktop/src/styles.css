@@ -633,3 +633,9 @@ body,.shell,.main{background:#0b0f14}
 .vl-draggable-preview{position:relative;overflow:hidden;user-select:none}
 .vl-draggable-preview img{user-select:none;touch-action:none}
 .vl-preview-caption{position:absolute;bottom:8px;left:8px;z-index:2;background:rgba(7,17,26,.85);color:#e7f3e5;border:1px solid #405669;border-radius:7px;padding:5px 9px;font-size:11px;pointer-events:none;font-variant-numeric:tabular-nums}
+
+/* v0.18 reversible animation editing */
+.vl-history-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 0}
+.vl-history-toolbar button{display:inline-flex;align-items:center;gap:7px;min-height:36px}
+.vl-history-toolbar button:disabled{opacity:.45;cursor:not-allowed}
+.vl-history-toolbar span{font-size:11px;color:#95a9ba;line-height:1.5}
