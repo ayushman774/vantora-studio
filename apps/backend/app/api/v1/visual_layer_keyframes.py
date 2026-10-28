@@ -53,7 +53,7 @@ def validate(data, hold_frames):
 
 def scope(db, project_id, season_id, episode_id, scene_id, shot_id, frame_id, layer_id):
     parents(db, project_id, season_id, episode_id, scene_id, shot_id)
-    frame = frame_or_404(db, shot_id, frame_id, layer_id)
+    frame = frame_or_404(db, shot_id, frame_id)
     layer = db.get(VisualLayer, layer_id)
     if layer is None or layer.storyboard_frame_id != frame_id:
         raise HTTPException(404, "Visual layer not found")
@@ -91,13 +91,13 @@ def create_keyframe(project_id: str, season_id: str, episode_id: str, scene_id: 
         return item
 
 @router.get("/{keyframe_id}", response_model=KeyframeOut)
-def get_keyframe(project_id: str, season_id: str, episode_id: str, scene_id: str, shot_id: str, frame_id: str, layer_id: str, keyframe_id: str, layer_id: str, request: Request):
+def get_keyframe(project_id: str, season_id: str, episode_id: str, scene_id: str, shot_id: str, frame_id: str, layer_id: str, keyframe_id: str, request: Request):
     with Session(request.app.state.engine) as db:
         scope(db, project_id, season_id, episode_id, scene_id, shot_id, frame_id, layer_id)
         return keyframe_or_404(db, layer_id, keyframe_id)
 
 @router.patch("/{keyframe_id}", response_model=KeyframeOut)
-def update_keyframe(project_id: str, season_id: str, episode_id: str, scene_id: str, shot_id: str, frame_id: str, layer_id: str, keyframe_id: str, layer_id: str, payload: KeyframeUpdate, request: Request):
+def update_keyframe(project_id: str, season_id: str, episode_id: str, scene_id: str, shot_id: str, frame_id: str, layer_id: str, keyframe_id: str, payload: KeyframeUpdate, request: Request):
     with Session(request.app.state.engine) as db:
         frame = scope(db, project_id, season_id, episode_id, scene_id, shot_id, frame_id, layer_id)
         item = keyframe_or_404(db, layer_id, keyframe_id)
@@ -114,7 +114,7 @@ def update_keyframe(project_id: str, season_id: str, episode_id: str, scene_id: 
         return item
 
 @router.delete("/{keyframe_id}", status_code=204)
-def delete_keyframe(project_id: str, season_id: str, episode_id: str, scene_id: str, shot_id: str, frame_id: str, layer_id: str, keyframe_id: str, layer_id: str, request: Request):
+def delete_keyframe(project_id: str, season_id: str, episode_id: str, scene_id: str, shot_id: str, frame_id: str, layer_id: str, keyframe_id: str, request: Request):
     with Session(request.app.state.engine) as db:
         scope(db, project_id, season_id, episode_id, scene_id, shot_id, frame_id, layer_id)
         db.delete(keyframe_or_404(db, layer_id, keyframe_id))
