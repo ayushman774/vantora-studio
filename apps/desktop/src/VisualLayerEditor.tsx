@@ -4,6 +4,7 @@ import {assetImageUrl,type Asset} from "./assetsApi";
 import LayerTimeline from "./LayerTimeline";
 import DraggableLayerPreview from "./DraggableLayerPreview";
 import {interpolateKeyframes} from "./animationInterpolation";
+import {buildMotionPreset,type MotionPreset} from "./motionPresets";
 import type {KeyframeScope,KeyframeInput} from "./animationKeyframesApi";
 import {listLayerKeyframes,createLayerKeyframe,updateLayerKeyframe,deleteLayerKeyframe,type LayerKeyframe} from "./layerKeyframesApi";
 import {
@@ -85,6 +86,9 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
  const [points,setPoints]=useState<LayerKeyframe[]>([]);
  const [timelinePoints,setTimelinePoints]=useState<Record<string,LayerKeyframe[]>>({});
  const [playhead,setPlayhead]=useState(0);
+ const [preset,setPreset]=useState<MotionPreset>("slide-in");
+ const [presetStart,setPresetStart]=useState(0);
+ const [presetEnd,setPresetEnd]=useState(Math.max(1,holdFrames-1));
  const [keyDraft,setKeyDraft]=useState<(KeyframeInput&{id?:string})|null>(null);
  const [loading,setLoading]=useState(true);
  const [error,setError]=useState("");
@@ -151,14 +155,14 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
   const {id,...data}=keyDraft;
   if(!Number.isInteger(data.frame_offset)||data.frame_offset<0||data.frame_offset>=holdFrames||data.scale<=0||data.scale>10||data.opacity<0||data.opacity>1||![data.position_x,data.position_y,data.scale,data.rotation,data.opacity].every(Number.isFinite)){setError("Check animation keyframe values.");return;}
   setBusy(true);setError("");
-  try{if(id)await updateLayerKeyframe(scope,selected,id,data);else await createLayerKeyframe(scope,selected,data);await loadPoints(selected);setKeyDraft(null);clearHistory();clearHistory();}
+  try{if(id)await updateLayerKeyframe(scope,selected,id,data);else await createLayerKeyframe(scope,selected,data);await loadPoints(selected);setKeyDraft(null);clearHistory();}
   catch(err){setError(err instanceof Error?err.message:"Could not save layer keyframe");}
   finally{setBusy(false);}
  }
  async function removePoint(id:string){
   if(!selected||busy||!window.confirm("Delete this layer keyframe?"))return;
   setBusy(true);setError("");
-  try{await deleteLayerKeyframe(scope,selected,id);await loadPoints(selected);setKeyDraft(null);}
+  try{await deleteLayerKeyframe(scope,selected,id);await loadPoints(selected);setKeyDraft(null);clearHistory();}
   catch(err){setError(err instanceof Error?err.message:"Could not delete layer keyframe");}
   finally{setBusy(false);}
  }
@@ -197,6 +201,34 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
    record({kind:"move",layerId,keyframeId:point.id,before:point.frame_offset,after:targetFrame});
   }catch(err){setError(err instanceof Error?err.message:"Could not move keyframe");}
   finally{setBusy(false);}
+ }
+ async function applyPreset(){
+  if(!selected||!draft||busy)return;
+  const layerId=selected;
+  const start=presetStart,end=presetEnd;
+  if(!Number.isInteger(start)||!Number.isInteger(end)||start<0||end>=holdFrames||start>=end){
+   setError("Choose two different frames within the current shot.");return;
+  }
+  const existing=timelinePoints[layerId]??[];
+  if(existing.some(point=>point.frame_offset===start||point.frame_offset===end)){
+   setError("Preset frames already contain keyframes. Choose unoccupied frames to preserve existing animation.");return;
+  }
+  const base=existing.length?interpolateKeyframes(existing,start):draft;
+  const generated=buildMotionPreset(preset,start,end,base);
+  setBusy(true);setError("");
+  const created:string[]=[];
+  try{
+   for(const point of generated){
+    const result=await createLayerKeyframe(scope,layerId,point);
+    created.push(result.id);
+   }
+   await loadPoints(layerId);setPlayhead(start);setKeyDraft(null);clearHistory();
+  }catch(err){
+   const rollback=await Promise.allSettled(created.map(id=>deleteLayerKeyframe(scope,layerId,id)));
+   try{await loadPoints(layerId);}catch{/* preserve original failure */}
+   const rollbackFailed=rollback.some(item=>item.status==="rejected");
+   setError((err instanceof Error?err.message:"Could not apply motion preset")+(rollbackFailed?" Some preset keyframes could not be rolled back; inspect the timeline.":""));
+  }finally{setBusy(false);}
  }
  function numeric(key:"layer_order"|"position_x"|"position_y"|"scale"|"rotation"|"opacity",value:number){
   setDraft(previous=>previous?{...previous,[key]:value}:previous);
@@ -254,6 +286,21 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
      </div>
     </form>}
 
+    {selected&&<section className="ak-panel vl-motion-presets" aria-label="Motion presets">
+     <div className="ak-section-head"><div><span className="eyebrow">QUICK ANIMATION</span><h3>Motion presets</h3></div></div>
+     <p className="vl-note">Generate two editable keyframes. Existing keyframes are never overwritten. Select two free frames.</p>
+     <div className="vl-preset-fields">
+      <label>Effect<select value={preset} onChange={event=>setPreset(event.target.value as MotionPreset)}>
+       <option value="slide-in">Slide in</option><option value="slide-out">Slide out</option>
+       <option value="zoom-in">Zoom in</option><option value="zoom-out">Zoom out</option>
+       <option value="fade-in">Fade in</option><option value="fade-out">Fade out</option>
+       <option value="rotate">Rotate 90°</option>
+      </select></label>
+      <label>Start frame<input type="number" min={0} max={Math.max(0,holdFrames-1)} step={1} value={presetStart} onChange={event=>setPresetStart(Number(event.target.value))}/></label>
+      <label>End frame<input type="number" min={0} max={Math.max(0,holdFrames-1)} step={1} value={presetEnd} onChange={event=>setPresetEnd(Number(event.target.value))}/></label>
+     </div>
+     <button type="button" className="primary-action" disabled={busy||holdFrames<2} onClick={()=>void applyPreset()}>Apply motion preset</button>
+    </section>}
     {selected&&<section className="ak-panel vl-keyframe-panel">
      <div className="ak-section-head"><div><span className="eyebrow">INDEPENDENT ANIMATION</span><h3>Layer keyframes</h3></div>
       <button type="button" className="secondary-action" disabled={busy||points.length>=holdFrames} onClick={addPoint}><Plus size={14}/> Add keyframe</button></div>
