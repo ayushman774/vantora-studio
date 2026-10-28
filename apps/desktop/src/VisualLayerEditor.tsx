@@ -138,7 +138,7 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
      </div>
     </form>}
 
-    {selected&&<section className="ak-panel" style={{marginTop:20}}>
+    {selected&&<section className="ak-panel vl-keyframe-panel">
      <div className="ak-section-head"><div><span className="eyebrow">INDEPENDENT ANIMATION</span><h3>Layer keyframes</h3></div>
       <button type="button" className="secondary-action" disabled={busy||points.length>=holdFrames} onClick={addPoint}><Plus size={14}/> Add keyframe</button></div>
      <p className="vl-note">Animate this layer only. Frame offsets run from 0 to {holdFrames-1} at 24 FPS. Save layer properties before adding keyframes.</p>
@@ -148,14 +148,21 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
       <button type="button" className="danger-action icon-action" disabled={busy} onClick={()=>void removePoint(point.id)}><Trash2 size={14}/></button></div>
      </article>)}</div>
      {keyDraft&&<form className="ak-form" onSubmit={e=>void savePoint(e)}>
-      <div className="vl-fields">
-       {(["frame_offset","position_x","position_y","scale","rotation","opacity"] as const).map(field=><label key={field}>{field.replaceAll("_"," ")}
-        <input required type="number" step={field==="frame_offset"?"1":"any"} min={field==="frame_offset"?0:field==="scale"?0.001:field==="opacity"?0:-10000} max={field==="frame_offset"?holdFrames-1:field==="scale"?10:field==="opacity"?1:10000} value={keyDraft[field]} onChange={e=>setKeyDraft(prev=>prev?{...prev,[field]:Number(e.target.value)}:prev)}/></label>)}
+      <div className="vl-keyframe-fields">
+       {(["frame_offset","position_x","position_y","scale","rotation","opacity"] as const).map(field=>{
+        const labels={frame_offset:"Timeline frame",position_x:"Position X",position_y:"Position Y",scale:"Scale",rotation:"Rotation",opacity:"Opacity"};
+        const units={frame_offset:"frame",position_x:"px",position_y:"px",scale:"×",rotation:"°",opacity:"0–1"};
+        const inputId="vl-keyframe-"+field;
+        return <div className="vl-keyframe-field" key={field}>
+         <label htmlFor={inputId}>{labels[field]} <span>{units[field]}</span></label>
+         <input id={inputId} required type="number" step={field==="frame_offset"?"1":"any"} min={field==="frame_offset"?0:field==="scale"?0.001:field==="opacity"?0:field==="rotation"?-3600:-10000} max={field==="frame_offset"?holdFrames-1:field==="scale"?10:field==="opacity"?1:field==="rotation"?3600:10000} value={keyDraft[field]} onChange={e=>setKeyDraft(prev=>prev?{...prev,[field]:Number(e.target.value)}:prev)}/>
+        </div>;
+       })}
       </div>
-      <label>Easing<select value={keyDraft.easing} onChange={e=>setKeyDraft({...keyDraft,easing:e.target.value as KeyframeInput["easing"]})}>
+      <div className="vl-keyframe-field"><label htmlFor="vl-keyframe-easing">Interpolation</label><select id="vl-keyframe-easing" value={keyDraft.easing} onChange={e=>setKeyDraft({...keyDraft,easing:e.target.value as KeyframeInput["easing"]})}>
        <option value="linear">Linear</option><option value="ease-in">Ease in</option><option value="ease-out">Ease out</option><option value="ease-in-out">Ease in / out</option>
-      </select></label>
-      <div className="vl-actions"><button type="submit" className="primary-action" disabled={busy}>Save keyframe</button><button type="button" className="secondary-action" onClick={()=>setKeyDraft(null)}>Cancel</button></div>
+      </select></div>
+      <div className="vl-actions vl-keyframe-actions"><button type="submit" className="primary-action" disabled={busy}>Save keyframe</button><button type="button" className="secondary-action" onClick={()=>setKeyDraft(null)}>Cancel</button></div>
      </form>}
     </section>}
    </section>
