@@ -5,6 +5,8 @@ import type {StoryboardFrame} from "./storyboardApi";
 import {audioFileUrl,type AudioAsset} from "./audioApi";
 import type {AudioClip} from "./animaticAudioApi";
 import type {AnimationKeyframe} from "./animationKeyframesApi";
+import type {VisualLayer} from "./visualLayersApi";
+import type {LayerKeyframe} from "./layerKeyframesApi";
 import {interpolateKeyframes,cssTransform} from "./animationInterpolation";
 
 function ease(t:number,kind:StoryboardFrame["motion_easing"]){const x=Math.max(0,Math.min(1,t));return kind==="ease-in"?x*x:kind==="ease-out"?1-(1-x)*(1-x):kind==="ease-in-out"?x*x*(3-2*x):x;}
@@ -21,8 +23,20 @@ function cameraTransform(frame:StoryboardFrame,progress:number){
   default:return "none";
  }
 }
+function visualOverlays(projectId:string,layers:VisualLayer[],assets:Asset[],points:Record<string,LayerKeyframe[]>,offset:number){
+ return [...layers].filter(layer=>layer.visible&&assets.some(asset=>asset.id===layer.asset_id))
+  .sort((a,b)=>a.layer_order-b.layer_order||a.id.localeCompare(b.id))
+  .map(layer=>{const keyframes=points[layer.id]??[];
+    const motion=keyframes.length?interpolateKeyframes(keyframes,offset):layer;
+    return <img key={layer.id} src={assetImageUrl(projectId,layer.asset_id)}
+    alt="" aria-hidden="true" style={{
+      position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"contain",
+      transform:`translate(${motion.position_x/1920*100}%,${motion.position_y/1080*100}%) rotate(${motion.rotation}deg) scale(${motion.scale})`,
+      opacity:motion.opacity,pointerEvents:"none"
+    }}/>;});
+}
 const FPS=24; // v0.12 uses a fixed preview rate; project FPS support can follow.
-export default function AnimaticPreview({projectId,frames,assets,keyframesByFrame={},audioAssets=[],audioClips=[]}:{projectId:string;frames:StoryboardFrame[];assets:Asset[];keyframesByFrame?:Record<string,AnimationKeyframe[]>;audioAssets?:AudioAsset[];audioClips?:AudioClip[]}){
+export default function AnimaticPreview({projectId,frames,assets,keyframesByFrame={},layersByFrame={},layerKeyframes={},audioAssets=[],audioClips=[]}:{projectId:string;frames:StoryboardFrame[];assets:Asset[];keyframesByFrame?:Record<string,AnimationKeyframe[]>;layersByFrame?:Record<string,VisualLayer[]>;layerKeyframes?:Record<string,LayerKeyframe[]>;audioAssets?:AudioAsset[];audioClips?:AudioClip[]}){
  const audioNodes=useRef<Map<string,HTMLAudioElement>>(new Map());
  const ordered=useMemo(()=>[...frames].sort((a,b)=>a.number-b.number||a.id.localeCompare(b.id)),[frames]);
  const starts=useMemo(()=>{let offset=0;return ordered.map(frame=>{const start=offset;offset+=frame.hold_frames;return start;});},[ordered]);
@@ -83,10 +97,28 @@ export default function AnimaticPreview({projectId,frames,assets,keyframesByFram
  function seek(next:number){setPlaying(false);setPosition(Math.max(0,Math.min(total-1,next)));}
  if(!ordered.length)return null;
  const hasImage=current.asset_id&&assets.some(asset=>asset.id===current.asset_id);
+ const currentLayers=layersByFrame[current.id]??[];
+ const previousLayers=previous?layersByFrame[previous.id]??[]:[];
  return <section className="animatic-panel" aria-label="Animatic preview">
   <div className="animatic-heading"><div><span className="eyebrow">V0.16 / ANIMATION PREVIEW</span><h3>Storyboard playback</h3></div><span>{FPS} FPS · {(total/FPS).toFixed(2)}s</span></div>
   <div className="animatic-audio-elements" aria-hidden="true">{audioClips.filter(clip=>audioAssets.some(asset=>asset.id===clip.audio_asset_id)).map(clip=><audio key={clip.id} preload="auto" src={audioFileUrl(projectId,clip.audio_asset_id)} ref={node=>{if(node)audioNodes.current.set(clip.id,node);else audioNodes.current.delete(clip.id);}}/>)}</div>
-  <div className="animatic-screen">{dissolving&&<div className="animatic-layer animatic-outgoing">{previousHasImage?<div style={{width:"100%",height:"100%",transform:previousTransform}}><img src={assetImageUrl(projectId,previous!.asset_id!)} alt="" aria-hidden="true" style={{transform:cssTransform(outgoingAnimated!),opacity:outgoingAnimated!.opacity}}/></div>:<div className="animatic-placeholder"><Film size={34}/><span>Visual pending</span></div>}</div>}<div className="animatic-layer animatic-incoming" style={{opacity:incomingOpacity*(current.transition==="fade"?opacity:1)}}>{hasImage?<div style={{width:"100%",height:"100%",transform}}><img src={assetImageUrl(projectId,current.asset_id!)} alt={current.title} style={{transform:cssTransform(animated),opacity:animated.opacity}}/></div>:<div className="animatic-placeholder"><Film size={34}/><span>Visual pending</span></div>}</div><div className="animatic-screen-caption"><span>FRAME {String(current.number).padStart(2,"0")} · {current.title}</span><span>{(position/FPS).toFixed(2)} / {(total/FPS).toFixed(2)}s</span></div></div>
+  <div className="animatic-screen">
+   {dissolving&&<div className="animatic-layer animatic-outgoing">
+    <div style={{width:"100%",height:"100%",transform:previousTransform,position:"relative"}}>
+     {previousHasImage&&<img src={assetImageUrl(projectId,previous!.asset_id!)} alt="" aria-hidden="true" style={{transform:cssTransform(outgoingAnimated!),opacity:outgoingAnimated!.opacity}}/>}
+     {visualOverlays(projectId,previousLayers,assets,layerKeyframes,previous!.hold_frames-1)}
+     {!previousHasImage&&!previousLayers.some(layer=>layer.visible)&&<div className="animatic-placeholder"><Film size={34}/><span>Visual pending</span></div>}
+    </div>
+   </div>}
+   <div className="animatic-layer animatic-incoming" style={{opacity:incomingOpacity*(current.transition==="fade"?opacity:1)}}>
+    <div style={{width:"100%",height:"100%",transform,position:"relative"}}>
+     {hasImage&&<img src={assetImageUrl(projectId,current.asset_id!)} alt={current.title} style={{transform:cssTransform(animated),opacity:animated.opacity}}/>}
+     {visualOverlays(projectId,currentLayers,assets,layerKeyframes,elapsed)}
+     {!hasImage&&!currentLayers.some(layer=>layer.visible)&&<div className="animatic-placeholder"><Film size={34}/><span>Visual pending</span></div>}
+    </div>
+   </div>
+   <div className="animatic-screen-caption"><span>FRAME {String(current.number).padStart(2,"0")} · {current.title}</span><span>{(position/FPS).toFixed(2)} / {(total/FPS).toFixed(2)}s</span></div>
+  </div>
   <div className="animatic-motion-settings"><span>Camera: {current.camera_motion.replaceAll("-"," ")} · {current.motion_intensity}% · {current.motion_easing.replaceAll("-"," ")} · Transition: {current.transition}</span><small>Edit a storyboard frame to change its saved camera motion and transition.</small></div>
   <div className="animatic-controls"><button type="button" className="secondary-action icon-action" aria-label="Previous frame" onClick={()=>seek(starts[Math.max(0,frameIndex-1)])}><SkipBack size={16}/></button><button type="button" className="primary-action" onClick={()=>{if(position>=total-1)setPosition(0);setPlaying(!playing);}}>{playing?<><Pause size={16}/> Pause</>:<><Play size={16}/> Play</>}</button><button type="button" className="secondary-action icon-action" aria-label="Next frame" onClick={()=>seek(starts[Math.min(starts.length-1,frameIndex+1)])}><SkipForward size={16}/></button><button type="button" className="secondary-action icon-action" aria-label="Restart" onClick={()=>seek(0)}><RotateCcw size={16}/></button></div>
   <input className="animatic-scrubber" aria-label="Seek animatic" type="range" min={0} max={Math.max(0,total-1)} value={position} onChange={e=>seek(Number(e.target.value))}/>

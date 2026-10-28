@@ -529,3 +529,71 @@ body,.shell,.main{background:#0b0f14}
 .ak-notice{border:1px solid #344957;background:#17242c;border-radius:11px;padding:14px 16px;color:#a8bbca;font-size:12px;line-height:1.6}
 @media(max-width:1120px){.ak-layout{grid-template-columns:minmax(0,1fr)}.ak-side{grid-row:1}.ak-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:640px){.ak-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.ak-panel{padding:16px}.ak-item{flex-wrap:wrap}.ak-actions{width:100%;justify-content:flex-end}.ak-field-group{grid-template-columns:minmax(0,1fr)}}
+
+
+/* v0.17 visual layer workspace */
+.vl-workspace{display:grid;gap:24px;min-width:0}
+.vl-header{display:flex;justify-content:space-between;align-items:flex-start;gap:24px}
+.vl-header .eyebrow{margin:18px 0 8px}
+.vl-header h2{font-family:'Space Grotesk',sans-serif;margin:0 0 8px}
+.vl-header p:not(.eyebrow){color:#9ba8b9;max-width:650px;line-height:1.5}
+.vl-layout{display:grid;grid-template-columns:minmax(250px,0.9fr) minmax(360px,1.5fr);gap:18px;align-items:start}
+.vl-stack,.vl-inspector{background:#111824;border:1px solid #283244;border-radius:18px;padding:22px;min-width:0}
+.vl-section-heading{display:flex;align-items:center;gap:10px;margin-bottom:20px;color:#eef4fa}
+.vl-section-heading span{margin-left:auto;color:#8d9bb0;font-size:12px}
+.vl-stack>p,.vl-note,.vl-empty{color:#9aa9b9;line-height:1.6}
+.vl-stack-item{display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:#182230;color:#dce5ef;border:1px solid #2a3748;border-radius:12px;padding:10px;margin-bottom:10px}
+.vl-stack-item:hover,.vl-stack-item.active{border-color:#bdf65d;background:#222f2b}
+.vl-stack-item img{width:52px;height:52px;object-fit:contain;border-radius:8px;background:#0a1019}
+.vl-stack-item span{display:grid;gap:5px;min-width:0;flex:1}
+.vl-stack-item strong{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vl-stack-item small{color:#96a6b6}
+.vl-form{display:grid;gap:16px}
+.vl-preview{height:230px;background:radial-gradient(ellipse at center,#273349,#0a1019 70%);border:1px solid #29384a;border-radius:14px;display:grid;place-items:center;overflow:hidden;color:#98a6b9}
+.vl-preview img{max-height:88%;max-width:88%;object-fit:contain}
+.vl-form label{display:grid;gap:7px;color:#aab7c8;font-size:13px}
+.vl-form input:not([type=checkbox]),.vl-form select{width:100%;background:#0c1420;border:1px solid #344055;border-radius:9px;color:#f0f4fa;padding:11px 12px;min-width:0}
+.vl-form input:focus-visible,.vl-form select:focus-visible{outline:2px solid #bdf65d;outline-offset:2px}
+.vl-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.vl-form .vl-visibility{display:flex;align-items:center;gap:10px}
+.vl-actions{display:flex;flex-wrap:wrap;gap:10px}
+@media(max-width:1050px){.vl-layout{grid-template-columns:1fr}.vl-header{flex-wrap:wrap}}
+
+
+/* v0.17 layer animation inspector: scoped controls; no global form overrides */
+.vl-keyframe-panel{margin-top:20px;padding:22px;min-width:0}
+.vl-keyframe-panel .ak-section-head{margin-bottom:14px}
+.vl-keyframe-panel .vl-note{font-size:13px;line-height:1.65;margin:0 0 20px}
+.vl-keyframe-panel .ak-list{gap:10px}
+.vl-keyframe-panel .ak-item{gap:12px;padding:14px 16px}
+.vl-keyframe-panel .ak-item-info>strong{display:block;margin-bottom:6px;color:#edf5fb;font-size:14px}
+.vl-keyframe-panel .ak-values{line-height:1.5}
+.vl-keyframe-panel .ak-form{margin-top:18px;padding:20px;background:#101a24;border:1px solid #35495a;border-radius:12px;gap:18px}
+.vl-keyframe-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.vl-keyframe-field{display:flex;flex-direction:column;gap:8px;min-width:0}
+.vl-keyframe-field label{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#d5e2ec;font-size:12px;font-weight:600;line-height:1.5}
+.vl-keyframe-field label span{font-size:11px;color:#8da4b8;font-weight:400;white-space:nowrap}
+.vl-keyframe-panel .vl-keyframe-field input[type=number],
+.vl-keyframe-panel .vl-keyframe-field select{
+ box-sizing:border-box;display:block;width:100%;min-width:0;height:43px;
+ padding:10px 12px;border-radius:9px;border:1px solid #3b4f61;
+ background:#0b141e;color:#edf5fb;font-family:inherit;font-size:13px;
+ line-height:1.3;color-scheme:dark;transition:border-color .15s,box-shadow .15s;
+}
+.vl-keyframe-panel .vl-keyframe-field input:hover,
+.vl-keyframe-panel .vl-keyframe-field select:hover{border-color:#637a8d}
+.vl-keyframe-panel .vl-keyframe-field input:focus-visible,
+.vl-keyframe-panel .vl-keyframe-field select:focus-visible{
+ outline:none;border-color:#bdf65d;box-shadow:0 0 0 3px rgba(189,246,93,.15)
+}
+.vl-keyframe-panel .vl-keyframe-field input:disabled,
+.vl-keyframe-panel .vl-keyframe-field select:disabled{opacity:.55;cursor:not-allowed}
+.vl-keyframe-actions{padding-top:16px;border-top:1px solid #2d3d4c;align-items:center}
+.vl-keyframe-actions button{min-height:42px}
+@media(max-width:640px){
+ .vl-keyframe-panel{padding:16px}
+ .vl-keyframe-panel .ak-form{padding:14px}
+ .vl-keyframe-fields{grid-template-columns:minmax(0,1fr)}
+ .vl-keyframe-panel .ak-item{flex-wrap:wrap}
+ .vl-keyframe-panel .ak-actions{width:100%;justify-content:flex-end}
+}

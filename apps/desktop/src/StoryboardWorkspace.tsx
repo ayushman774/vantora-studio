@@ -3,6 +3,9 @@ import {ArrowLeft,Plus,Pencil,Trash2,RefreshCw,PanelsTopLeft,Clock3,ChevronDown,
 import {listAssets,uploadAsset,assetImageUrl,type Asset} from "./assetsApi";
 import AnimaticPreview from "./AnimaticPreview";
 import AnimationKeyframeEditor from "./AnimationKeyframeEditor";
+import VisualLayerEditor from "./VisualLayerEditor";
+import {listVisualLayers,type VisualLayer} from "./visualLayersApi";
+import {listLayerKeyframes,type LayerKeyframe} from "./layerKeyframesApi";
 import {listKeyframes,type AnimationKeyframe} from "./animationKeyframesApi";
 import {listAudio,type AudioAsset} from "./audioApi";
 import {listAudioClips,addAudioClip,editAudioClip,removeAudioClip,type AudioClip,type AudioClipInput} from "./animaticAudioApi";
@@ -15,7 +18,10 @@ const blank=(number:number):StoryboardInput=>({number,title:"",description:"",co
 export default function StoryboardWorkspace({projectId,seasonId,episodeId,sceneId,shotId,shotTitle,onBack}:{projectId:string;seasonId:string;episodeId:string;sceneId:string;shotId:string;shotTitle:string;onBack:()=>void}){
  const [frames,setFrames]=useState<StoryboardFrame[]>([]);
  const [keyframesByFrame,setKeyframesByFrame]=useState<Record<string,AnimationKeyframe[]>>({});
+ const [layersByFrame,setLayersByFrame]=useState<Record<string,VisualLayer[]>>({});
+ const [layerKeyframes,setLayerKeyframes]=useState<Record<string,LayerKeyframe[]>>({});
  const [animationFrameId,setAnimationFrameId]=useState<string|null>(null);
+ const [layerFrameId,setLayerFrameId]=useState<string|null>(null);
  const [assets,setAssets]=useState<Asset[]>([]);
  const [audioAssets,setAudioAssets]=useState<AudioAsset[]>([]);
  const [audioClips,setAudioClips]=useState<AudioClip[]>([]);
@@ -29,7 +35,10 @@ export default function StoryboardWorkspace({projectId,seasonId,episodeId,sceneI
  const audioScope={projectId,seasonId,episodeId,sceneId,shotId};
  const refresh=useCallback(async()=>{
   setLoading(true);setError("");
-  try{const [nextFrames,nextAssets,nextAudio,nextClips]=await Promise.all([listStoryboardFrames(projectId,seasonId,episodeId,sceneId,shotId),listAssets(projectId),listAudio(projectId),listAudioClips({projectId,seasonId,episodeId,sceneId,shotId})]);setFrames(nextFrames);const groups=await Promise.all(nextFrames.map(async frame=>[frame.id,await listKeyframes({projectId,seasonId,episodeId,sceneId,shotId,frameId:frame.id})] as const));setKeyframesByFrame(Object.fromEntries(groups));setAssets(nextAssets);setAudioAssets(nextAudio);setAudioClips(nextClips);}
+  try{const [nextFrames,nextAssets,nextAudio,nextClips]=await Promise.all([listStoryboardFrames(projectId,seasonId,episodeId,sceneId,shotId),listAssets(projectId),listAudio(projectId),listAudioClips({projectId,seasonId,episodeId,sceneId,shotId})]);setFrames(nextFrames);const groups=await Promise.all(nextFrames.map(async frame=>[frame.id,await listKeyframes({projectId,seasonId,episodeId,sceneId,shotId,frameId:frame.id})] as const));setKeyframesByFrame(Object.fromEntries(groups));const layerGroups=await Promise.all(nextFrames.map(async frame=>[frame.id,await listVisualLayers({projectId,seasonId,episodeId,sceneId,shotId,frameId:frame.id})] as const));setLayersByFrame(Object.fromEntries(layerGroups));
+   const allLayers=layerGroups.flatMap(([,items])=>items);
+   const keyframeGroups=await Promise.all(allLayers.map(async layer=>[layer.id,await listLayerKeyframes({projectId,seasonId,episodeId,sceneId,shotId,frameId:layer.storyboard_frame_id},layer.id)] as const));
+   setLayerKeyframes(Object.fromEntries(keyframeGroups));setAssets(nextAssets);setAudioAssets(nextAudio);setAudioClips(nextClips);}
   catch(e){setError(e instanceof Error?e.message:"Could not load storyboard frames");}
   finally{setLoading(false);}
  },[projectId,seasonId,episodeId,sceneId,shotId]);
@@ -95,11 +104,13 @@ export default function StoryboardWorkspace({projectId,seasonId,episodeId,sceneI
   finally{setBusy(false);}
  }
  const animationFrame=frames.find(frame=>frame.id===animationFrameId);
+ const layerFrame=frames.find(frame=>frame.id===layerFrameId);
+ if(layerFrame)return <VisualLayerEditor key={layerFrame.id} scope={{projectId,seasonId,episodeId,sceneId,shotId,frameId:layerFrame.id}} assets={assets} frameTitle={layerFrame.title} holdFrames={layerFrame.hold_frames} onBack={()=>{setLayerFrameId(null);void refresh();}}/>;
  if(animationFrame)return <AnimationKeyframeEditor key={animationFrame.id} frame={animationFrame} scope={{projectId,seasonId,episodeId,sceneId,shotId,frameId:animationFrame.id}} onBack={()=>{setAnimationFrameId(null);void refresh();}}/>;
  return <section className="storyboard-workspace">
-  <div className="project-toolbar"><div><button className="secondary-action" onClick={onBack}><ArrowLeft size={15}/> Back to shots</button><div className="eyebrow" style={{marginTop:16}}>STORYBOARD / {shotTitle}</div><h2>Storyboard Frames</h2></div><div className="projects-actions"><button className="secondary-action" disabled={exporting||loading||!frames.length} title="Exports cinematic MP4 with camera motion, transitions, and audio. Animation keyframe rendering is not yet included; requires local FFmpeg." onClick={()=>void exportMp4()}><Download size={15}/>{exporting?"Rendering MP4…":"Export Cinematic MP4"}</button><button className="secondary-action" disabled={busy||loading} onClick={()=>void refresh()}><RefreshCw size={15}/> Refresh</button><button className="primary-action" onClick={()=>{setError("");setEditor(blank(Math.max(0,...frames.map(f=>f.number))+1));}}><Plus size={15}/> New frame</button></div></div>
+  <div className="project-toolbar"><div><button className="secondary-action" onClick={onBack}><ArrowLeft size={15}/> Back to shots</button><div className="eyebrow" style={{marginTop:16}}>STORYBOARD / {shotTitle}</div><h2>Storyboard Frames</h2></div><div className="projects-actions"><button className="secondary-action" disabled={exporting||loading||!frames.length} title="Exports cinematic MP4 with camera motion, animation keyframes, transitions, and audio. Includes composited layers and per-layer keyframe animation." onClick={()=>void exportMp4()}><Download size={15}/>{exporting?"Rendering MP4…":"Export Cinematic MP4"}</button><button className="secondary-action" disabled={busy||loading} onClick={()=>void refresh()}><RefreshCw size={15}/> Refresh</button><button className="primary-action" onClick={()=>{setError("");setEditor(blank(Math.max(0,...frames.map(f=>f.number))+1));}}><Plus size={15}/> New frame</button></div></div>
   <div className="storyboard-overview"><div><span>SHOT STORYBOARD</span><strong>{frames.length} <small>frames</small></strong></div><div><span>TOTAL HOLD</span><strong>{frames.reduce((sum,frame)=>sum+frame.hold_frames,0)} <small>frames</small></strong></div><p>Sequence planning · Frames ordered by number · Local visual references</p></div>
-  {!loading&&frames.length>0&&<AnimaticPreview projectId={projectId} frames={frames} assets={assets} keyframesByFrame={keyframesByFrame} audioAssets={audioAssets} audioClips={audioClips}/>}
+  {!loading&&frames.length>0&&<AnimaticPreview projectId={projectId} frames={frames} assets={assets} keyframesByFrame={keyframesByFrame} layersByFrame={layersByFrame} layerKeyframes={layerKeyframes} audioAssets={audioAssets} audioClips={audioClips}/>}
   {!loading&&frames.length>0&&<section className="animatic-audio-editor"><div className="animatic-audio-heading"><div><span className="eyebrow">V0.15 · AUDIO TIMELINE</span><h3>Soundtrack & audio clips</h3><p>Position imported audio on this shot’s 24 FPS timeline. Audio clips are saved locally.</p></div><select aria-label="Add audio from library" disabled={audioBusy||!audioAssets.length} value="" onChange={e=>void addClip(e.target.value)}><option value="">+ Add audio clip</option>{audioAssets.map(a=><option key={a.id} value={a.id}>{a.title} · {a.category.replaceAll("_"," ")}</option>)}</select></div>{audioError&&<div className="project-error" role="alert">{audioError}</div>}{!audioAssets.length&&<p>Import MP3 or WAV files from the Audio Library first.</p>}{!audioClips.length&&<p>No audio clips attached to this shot yet.</p>}<div className="animatic-audio-clips">{audioClips.map(clip=>{const asset=audioAssets.find(a=>a.id===clip.audio_asset_id);return <div className="animatic-audio-clip" key={clip.id}><strong title={asset?.title}>{asset?.title??"Missing audio asset"}</strong><label>Start (frames)<input type="number" min={0} max={1000000} defaultValue={clip.start_frame} key={clip.id+"start"+clip.start_frame} disabled={audioBusy} onBlur={e=>{const value=Number(e.target.value);if(Number.isInteger(value)&&value>=0&&value!==clip.start_frame)void changeClip(clip.id,{start_frame:value});}}/></label><label>Length (frames)<input type="number" min={1} max={1000000} defaultValue={clip.duration_frames} key={clip.id+"duration"+clip.duration_frames} disabled={audioBusy} onBlur={e=>{const value=Number(e.target.value);if(Number.isInteger(value)&&value>0&&value!==clip.duration_frames)void changeClip(clip.id,{duration_frames:value});}}/></label><label>Volume ({Math.round(clip.volume*100)}%)<input type="range" min={0} max={1} step={0.1} value={Math.min(1,clip.volume)} disabled={audioBusy} onChange={e=>void changeClip(clip.id,{volume:Number(e.target.value)})}/></label><label className="animatic-audio-mute"><input type="checkbox" checked={clip.muted} disabled={audioBusy} onChange={e=>void changeClip(clip.id,{muted:e.target.checked})}/> Mute</label><button type="button" className="danger-action icon-action" disabled={audioBusy} title="Remove clip" aria-label={"Remove "+(asset?.title??"audio clip")} onClick={()=>void deleteClip(clip.id)}><Trash2 size={15}/></button></div>;})}</div></section>}
   {error&&<div className="project-error" role="alert">{error}</div>}
   {editor&&<div className="workspace-editor-backdrop"><form className="project-form workspace-editor cinematic-editor" onSubmit={e=>void save(e)}>
@@ -127,7 +138,7 @@ export default function StoryboardWorkspace({projectId,seasonId,episodeId,sceneI
      <details className="storyboard-details"><summary>Production notes <ChevronDown size={15}/></summary><div className="storyboard-notes">
       <p><b>Composition</b>{frame.composition||"Not specified"}</p><p><b>Camera</b>{frame.camera_notes||"Not specified"}</p><p><b>Continuity</b>{frame.continuity_notes||"Not specified"}</p>
      </div></details>
-     <div className="storyboard-card-actions"><button className="secondary-action" onClick={()=>setAnimationFrameId(frame.id)}><Film size={14}/> Animate</button><button className="secondary-action" onClick={()=>{setError("");setEditor({...frame});}}><Pencil size={14}/> Edit frame</button><button className="danger-action icon-action" aria-label={"Delete frame "+frame.number} title="Delete frame" disabled={busy} onClick={()=>void remove(frame)}><Trash2 size={15}/></button></div>
+     <div className="storyboard-card-actions"><button className="secondary-action" onClick={()=>setLayerFrameId(frame.id)}><PanelsTopLeft size={14}/> Layers</button><button className="secondary-action" onClick={()=>setAnimationFrameId(frame.id)}><Film size={14}/> Animate</button><button className="secondary-action" onClick={()=>{setError("");setEditor({...frame});}}><Pencil size={14}/> Edit frame</button><button className="danger-action icon-action" aria-label={"Delete frame "+frame.number} title="Delete frame" disabled={busy} onClick={()=>void remove(frame)}><Trash2 size={15}/></button></div>
     </div></article>)}
   </div>}
  </section>;

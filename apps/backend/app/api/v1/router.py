@@ -33,3 +33,9 @@ router.include_router(animatic_audio_router)
 
 from app.api.v1.animation_keyframes import router as animation_keyframes_router
 router.include_router(animation_keyframes_router)
+
+from app.api.v1.visual_layers import router as visual_layers_router
+router.include_router(visual_layers_router)
+
+from app.api.v1.visual_layer_keyframes import router as visual_layer_keyframes_router
+router.include_router(visual_layer_keyframes_router)

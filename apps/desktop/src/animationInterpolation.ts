@@ -7,7 +7,7 @@ export function easing(t:number,kind:AnimationKeyframe["easing"]):number{
  const x=clamp(t);
  return kind==="ease-in"?x*x:kind==="ease-out"?1-(1-x)*(1-x):kind==="ease-in-out"?x*x*(3-2*x):x;
 }
-export function interpolateKeyframes(keyframes:AnimationKeyframe[],offset:number):Transform{
+export function interpolateKeyframes<T extends Transform & {frame_offset:number;easing:AnimationKeyframe["easing"]}>(keyframes:readonly T[],offset:number):Transform{
  if(!keyframes.length)return IDENTITY;
  const sorted=[...keyframes].sort((a,b)=>a.frame_offset-b.frame_offset);
  const first=sorted[0],last=sorted[sorted.length-1];
@@ -24,7 +24,7 @@ export function interpolateKeyframes(keyframes:AnimationKeyframe[],offset:number
   opacity:a.opacity+(b.opacity-a.opacity)*progress,
  };
 }
-function pick(item:AnimationKeyframe):Transform{
+function pick(item:Transform):Transform{
  return {position_x:item.position_x,position_y:item.position_y,scale:item.scale,rotation:item.rotation,opacity:item.opacity};
 }
 export function cssTransform(value:Transform):string{
