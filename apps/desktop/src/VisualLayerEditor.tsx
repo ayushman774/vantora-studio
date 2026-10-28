@@ -92,6 +92,7 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
  const [keyDraft,setKeyDraft]=useState<(KeyframeInput&{id?:string})|null>(null);
  const [loading,setLoading]=useState(true);
  const [error,setError]=useState("");
+ const [success,setSuccess]=useState("");
  const images=assets.filter(asset=>asset.media_type.startsWith("image/"));
  async function refreshTimeline(items:VisualLayer[]){
   const entries=await Promise.all(items.map(async layer=>[layer.id,await listLayerKeyframes(scope,layer.id)] as const));
@@ -215,7 +216,7 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
   }
   const base=existing.length?interpolateKeyframes(existing,start):draft;
   const generated=buildMotionPreset(preset,start,end,base);
-  setBusy(true);setError("");
+  setBusy(true);setError("");setSuccess("");
   const created:string[]=[];
   try{
    for(const point of generated){
@@ -223,6 +224,7 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
     created.push(result.id);
    }
    await loadPoints(layerId);setPlayhead(start);setKeyDraft(null);clearHistory();
+   setSuccess("Motion preset saved successfully. Two keyframes were created at frames "+start+" and "+end+".");
   }catch(err){
    const rollback=await Promise.allSettled(created.map(id=>deleteLayerKeyframe(scope,layerId,id)));
    try{await loadPoints(layerId);}catch{/* preserve original failure */}
@@ -241,6 +243,7 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
    <button className="primary-action" type="button" disabled={loading||busy||!images.length} onClick={add}><Plus size={15}/> Add layer</button>
   </header>
   {error&&<div className="project-error" role="alert">{error}</div>}
+  {success&&<div className="vl-success" role="status" aria-live="polite">{success}</div>}
   <div className="vl-history-toolbar" aria-label="Animation history controls">
    <button type="button" className="secondary-action" disabled={busy||undoStack.current.length===0} onClick={()=>void historyStep(true)}><Undo2 size={15}/> Undo animation</button>
    <button type="button" className="secondary-action" disabled={busy||redoStack.current.length===0} onClick={()=>void historyStep(false)}><Redo2 size={15}/> Redo animation</button>
