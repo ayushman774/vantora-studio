@@ -6,6 +6,7 @@ import {audioFileUrl,type AudioAsset} from "./audioApi";
 import type {AudioClip} from "./animaticAudioApi";
 import type {AnimationKeyframe} from "./animationKeyframesApi";
 import type {VisualLayer} from "./visualLayersApi";
+import type {LayerKeyframe} from "./layerKeyframesApi";
 import {interpolateKeyframes,cssTransform} from "./animationInterpolation";
 
 function ease(t:number,kind:StoryboardFrame["motion_easing"]){const x=Math.max(0,Math.min(1,t));return kind==="ease-in"?x*x:kind==="ease-out"?1-(1-x)*(1-x):kind==="ease-in-out"?x*x*(3-2*x):x;}
@@ -22,18 +23,20 @@ function cameraTransform(frame:StoryboardFrame,progress:number){
   default:return "none";
  }
 }
-function visualOverlays(projectId:string,layers:VisualLayer[],assets:Asset[]){
+function visualOverlays(projectId:string,layers:VisualLayer[],assets:Asset[],points:Record<string,LayerKeyframe[]>,offset:number){
  return [...layers].filter(layer=>layer.visible&&assets.some(asset=>asset.id===layer.asset_id))
   .sort((a,b)=>a.layer_order-b.layer_order||a.id.localeCompare(b.id))
-  .map(layer=><img key={layer.id} src={assetImageUrl(projectId,layer.asset_id)}
+  .map(layer=>{const keyframes=points[layer.id]??[];
+    const motion=keyframes.length?interpolateKeyframes(keyframes,offset):layer;
+    return <img key={layer.id} src={assetImageUrl(projectId,layer.asset_id)}
     alt="" aria-hidden="true" style={{
       position:"absolute",inset:0,width:"100%",height:"100%",objectFit:"contain",
-      transform:`translate(${layer.position_x/1920*100}%,${layer.position_y/1080*100}%) rotate(${layer.rotation}deg) scale(${layer.scale})`,
-      opacity:layer.opacity,pointerEvents:"none"
-    }}/>);
+      transform:`translate(${motion.position_x/1920*100}%,${motion.position_y/1080*100}%) rotate(${motion.rotation}deg) scale(${motion.scale})`,
+      opacity:motion.opacity,pointerEvents:"none"
+    }}/>;});
 }
 const FPS=24; // v0.12 uses a fixed preview rate; project FPS support can follow.
-export default function AnimaticPreview({projectId,frames,assets,keyframesByFrame={},layersByFrame={},audioAssets=[],audioClips=[]}:{projectId:string;frames:StoryboardFrame[];assets:Asset[];keyframesByFrame?:Record<string,AnimationKeyframe[]>;layersByFrame?:Record<string,VisualLayer[]>;audioAssets?:AudioAsset[];audioClips?:AudioClip[]}){
+export default function AnimaticPreview({projectId,frames,assets,keyframesByFrame={},layersByFrame={},layerKeyframes={},audioAssets=[],audioClips=[]}:{projectId:string;frames:StoryboardFrame[];assets:Asset[];keyframesByFrame?:Record<string,AnimationKeyframe[]>;layersByFrame?:Record<string,VisualLayer[]>;layerKeyframes?:Record<string,LayerKeyframe[]>;audioAssets?:AudioAsset[];audioClips?:AudioClip[]}){
  const audioNodes=useRef<Map<string,HTMLAudioElement>>(new Map());
  const ordered=useMemo(()=>[...frames].sort((a,b)=>a.number-b.number||a.id.localeCompare(b.id)),[frames]);
  const starts=useMemo(()=>{let offset=0;return ordered.map(frame=>{const start=offset;offset+=frame.hold_frames;return start;});},[ordered]);
@@ -103,14 +106,14 @@ export default function AnimaticPreview({projectId,frames,assets,keyframesByFram
    {dissolving&&<div className="animatic-layer animatic-outgoing">
     <div style={{width:"100%",height:"100%",transform:previousTransform,position:"relative"}}>
      {previousHasImage&&<img src={assetImageUrl(projectId,previous!.asset_id!)} alt="" aria-hidden="true" style={{transform:cssTransform(outgoingAnimated!),opacity:outgoingAnimated!.opacity}}/>}
-     {visualOverlays(projectId,previousLayers,assets)}
+     {visualOverlays(projectId,previousLayers,assets,layerKeyframes,previous!.hold_frames-1)}
      {!previousHasImage&&!previousLayers.some(layer=>layer.visible)&&<div className="animatic-placeholder"><Film size={34}/><span>Visual pending</span></div>}
     </div>
    </div>}
    <div className="animatic-layer animatic-incoming" style={{opacity:incomingOpacity*(current.transition==="fade"?opacity:1)}}>
     <div style={{width:"100%",height:"100%",transform,position:"relative"}}>
      {hasImage&&<img src={assetImageUrl(projectId,current.asset_id!)} alt={current.title} style={{transform:cssTransform(animated),opacity:animated.opacity}}/>}
-     {visualOverlays(projectId,currentLayers,assets)}
+     {visualOverlays(projectId,currentLayers,assets,layerKeyframes,elapsed)}
      {!hasImage&&!currentLayers.some(layer=>layer.visible)&&<div className="animatic-placeholder"><Film size={34}/><span>Visual pending</span></div>}
     </div>
    </div>
