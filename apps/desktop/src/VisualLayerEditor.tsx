@@ -100,6 +100,22 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
   catch(err){setError(err instanceof Error?err.message:"Could not delete layer keyframe");}
   finally{setBusy(false);}
  }
+ async function movePoint(layerId:string,point:LayerKeyframe,targetFrame:number){
+  if(busy||targetFrame===point.frame_offset)return;
+  if(targetFrame<0||targetFrame>=holdFrames||timelinePoints[layerId]?.some(item=>item.id!==point.id&&item.frame_offset===targetFrame)){
+   setError("That frame already contains a keyframe, or is outside the animation.");return;
+  }
+  setBusy(true);setError("");
+  try{
+   await updateLayerKeyframe(scope,layerId,point.id,{frame_offset:targetFrame});
+   const updated=await listLayerKeyframes(scope,layerId);
+   setTimelinePoints(previous=>({...previous,[layerId]:updated}));
+   if(selected===layerId)setPoints(updated);
+   setPlayhead(targetFrame);
+   if(selected===layerId&&keyDraft?.id===point.id)setKeyDraft(previous=>previous?{...previous,frame_offset:targetFrame}:previous);
+  }catch(err){setError(err instanceof Error?err.message:"Could not move keyframe");}
+  finally{setBusy(false);}
+ }
  function numeric(key:"layer_order"|"position_x"|"position_y"|"scale"|"rotation"|"opacity",value:number){
   setDraft(previous=>previous?{...previous,[key]:value}:previous);
  }
@@ -112,7 +128,7 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
   </header>
   {error&&<div className="project-error" role="alert">{error}</div>}
   <LayerTimeline layers={layers} keyframes={timelinePoints} holdFrames={holdFrames} playhead={playhead} selectedLayerId={selected}
-   onSeek={setPlayhead} onSelectLayer={id=>{const layer=layers.find(item=>item.id===id);if(layer)select(layer);}}
+   onSeek={setPlayhead} busy={busy} onMoveKeyframe={movePoint} onSelectLayer={id=>{const layer=layers.find(item=>item.id===id);if(layer)select(layer);}}
    onSelectKeyframe={(id,point)=>{const layer=layers.find(item=>item.id===id);if(layer)select(layer);setKeyDraft({...point});}}/>
   <div className="vl-layout">
    <section className="vl-stack" aria-label="Visual layer stack">
