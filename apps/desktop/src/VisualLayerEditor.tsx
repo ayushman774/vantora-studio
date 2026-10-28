@@ -1,6 +1,8 @@
 import {useEffect,useState,type FormEvent} from "react";
 import {ArrowLeft,Layers,Plus,Trash2,Eye,EyeOff,Save} from "lucide-react";
 import {assetImageUrl,type Asset} from "./assetsApi";
+import LayerTimeline from "./LayerTimeline";
+import {interpolateKeyframes} from "./animationInterpolation";
 import type {KeyframeScope,KeyframeInput} from "./animationKeyframesApi";
 import {listLayerKeyframes,createLayerKeyframe,updateLayerKeyframe,deleteLayerKeyframe,type LayerKeyframe} from "./layerKeyframesApi";
 import {
@@ -20,24 +22,31 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
  const [draft,setDraft]=useState<VisualLayerInput|null>(null);
  const [busy,setBusy]=useState(false);
  const [points,setPoints]=useState<LayerKeyframe[]>([]);
+ const [timelinePoints,setTimelinePoints]=useState<Record<string,LayerKeyframe[]>>({});
+ const [playhead,setPlayhead]=useState(0);
  const [keyDraft,setKeyDraft]=useState<(KeyframeInput&{id?:string})|null>(null);
  const [loading,setLoading]=useState(true);
  const [error,setError]=useState("");
  const images=assets.filter(asset=>asset.media_type.startsWith("image/"));
+ async function refreshTimeline(items:VisualLayer[]){
+  const entries=await Promise.all(items.map(async layer=>[layer.id,await listLayerKeyframes(scope,layer.id)] as const));
+  setTimelinePoints(Object.fromEntries(entries));
+ }
  async function reload(){
   const items=await listVisualLayers(scope);
   setLayers(items);
+  await refreshTimeline(items);
   return items;
  }
  useEffect(()=>{
   let active=true;
   setLoading(true);setError("");
-  listVisualLayers(scope).then(items=>{if(active)setLayers(items);})
+  listVisualLayers(scope).then(async items=>{if(active){setLayers(items);await refreshTimeline(items);}})
    .catch(e=>{if(active)setError(e instanceof Error?e.message:"Unable to load layers");})
    .finally(()=>{if(active)setLoading(false);});
   return()=>{active=false;};
  },[scope.projectId,scope.seasonId,scope.episodeId,scope.sceneId,scope.shotId,scope.frameId]);
- async function loadPoints(id:string){try{setPoints(await listLayerKeyframes(scope,id));}catch(e){setError(e instanceof Error?e.message:"Could not load layer keyframes");}}
+ async function loadPoints(id:string){try{const next=await listLayerKeyframes(scope,id);setPoints(next);setTimelinePoints(previous=>({...previous,[id]:next}));}catch(e){setError(e instanceof Error?e.message:"Could not load layer keyframes");}}
  function select(layer:VisualLayer){setSelected(layer.id);setKeyDraft(null);setPoints([]);void loadPoints(layer.id);setDraft({
   asset_id:layer.asset_id,name:layer.name,layer_order:layer.layer_order,
   position_x:layer.position_x,position_y:layer.position_y,scale:layer.scale,
@@ -63,7 +72,7 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
  async function remove(){
   if(!selected||busy||!window.confirm("Remove this layer? The original asset will remain in the library."))return;
   setBusy(true);setError("");
-  try{await deleteVisualLayer(scope,selected);await reload();setSelected(null);setDraft(null);}
+  try{await deleteVisualLayer(scope,selected);await reload();setSelected(null);setDraft(null);setPoints([]);}
   catch(e){setError(e instanceof Error?e.message:"Could not delete layer");}
   finally{setBusy(false);}
  }
@@ -102,6 +111,9 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
    <button className="primary-action" type="button" disabled={loading||busy||!images.length} onClick={add}><Plus size={15}/> Add layer</button>
   </header>
   {error&&<div className="project-error" role="alert">{error}</div>}
+  <LayerTimeline layers={layers} keyframes={timelinePoints} holdFrames={holdFrames} playhead={playhead} selectedLayerId={selected}
+   onSeek={setPlayhead} onSelectLayer={id=>{const layer=layers.find(item=>item.id===id);if(layer)select(layer);}}
+   onSelectKeyframe={(id,point)=>{const layer=layers.find(item=>item.id===id);if(layer)select(layer);setKeyDraft({...point});}}/>
   <div className="vl-layout">
    <section className="vl-stack" aria-label="Visual layer stack">
     <div className="vl-section-heading"><Layers size={17}/><strong>Layer stack</strong><span>{layers.length} layers</span></div>
@@ -119,7 +131,10 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
     {!draft?<div className="vl-empty">Select a layer to edit, or add a new layer.</div>:
     <form onSubmit={e=>void save(e)} className="vl-form">
      <div className="vl-preview">{draft.visible?<img src={assetImageUrl(scope.projectId,draft.asset_id)}
-       alt="Selected layer artwork" style={{transform:`translate(${draft.position_x/8}px,${draft.position_y/8}px) rotate(${draft.rotation}deg) scale(${draft.scale})`,opacity:draft.opacity}}/>:<span>Layer hidden</span>}</div>
+       alt="Selected layer artwork" style={(()=>{
+        const motion=selected&&timelinePoints[selected]?.length?interpolateKeyframes(timelinePoints[selected],playhead):draft;
+        return {transform:`translate(${motion.position_x/8}px,${motion.position_y/8}px) rotate(${motion.rotation}deg) scale(${motion.scale})`,opacity:motion.opacity};
+       })()}/>:<span>Layer hidden</span>}</div>
      <label>Name<input required maxLength={160} value={draft.name} onChange={e=>setDraft({...draft,name:e.target.value})}/></label>
      <label>Image asset<select value={draft.asset_id} onChange={e=>setDraft({...draft,asset_id:e.target.value})}>
       {images.map(asset=><option key={asset.id} value={asset.id}>{asset.title} · {asset.category}</option>)}
