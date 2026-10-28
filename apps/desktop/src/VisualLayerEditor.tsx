@@ -32,6 +32,7 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
  const historyScope=useRef("");
  const scopeKey=[scope.projectId,scope.seasonId,scope.episodeId,scope.sceneId,scope.shotId,scope.frameId].join("/");
  if(historyScope.current!==scopeKey){historyScope.current=scopeKey;undoStack.current=[];redoStack.current=[];}
+ function clearHistory(){undoStack.current=[];redoStack.current=[];setHistoryVersion(v=>v+1);}
  function record(action:HistoryAction){
   undoStack.current=[...undoStack.current,action].slice(-HISTORY_LIMIT);
   redoStack.current=[];setHistoryVersion(v=>v+1);
@@ -126,13 +127,14 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
    const items=await reload();
    const updated=items.find(layer=>layer.id===item.id);
    if(updated)select(updated);
+   clearHistory();
   }catch(e){setError(e instanceof Error?e.message:"Could not save layer");}
   finally{setBusy(false);}
  }
  async function remove(){
   if(!selected||busy||!window.confirm("Remove this layer? The original asset will remain in the library."))return;
   setBusy(true);setError("");
-  try{await deleteVisualLayer(scope,selected);await reload();setSelected(null);setDraft(null);setPoints([]);}
+  try{await deleteVisualLayer(scope,selected);await reload();setSelected(null);setDraft(null);setPoints([]);clearHistory();}
   catch(e){setError(e instanceof Error?e.message:"Could not delete layer");}
   finally{setBusy(false);}
  }
@@ -149,7 +151,7 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
   const {id,...data}=keyDraft;
   if(!Number.isInteger(data.frame_offset)||data.frame_offset<0||data.frame_offset>=holdFrames||data.scale<=0||data.scale>10||data.opacity<0||data.opacity>1||![data.position_x,data.position_y,data.scale,data.rotation,data.opacity].every(Number.isFinite)){setError("Check animation keyframe values.");return;}
   setBusy(true);setError("");
-  try{if(id)await updateLayerKeyframe(scope,selected,id,data);else await createLayerKeyframe(scope,selected,data);await loadPoints(selected);setKeyDraft(null);}
+  try{if(id)await updateLayerKeyframe(scope,selected,id,data);else await createLayerKeyframe(scope,selected,data);await loadPoints(selected);setKeyDraft(null);clearHistory();clearHistory();}
   catch(err){setError(err instanceof Error?err.message:"Could not save layer keyframe");}
   finally{setBusy(false);}
  }
