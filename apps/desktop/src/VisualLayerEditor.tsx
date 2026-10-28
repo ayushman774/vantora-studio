@@ -2,6 +2,7 @@ import {useEffect,useState,type FormEvent} from "react";
 import {ArrowLeft,Layers,Plus,Trash2,Eye,EyeOff,Save} from "lucide-react";
 import {assetImageUrl,type Asset} from "./assetsApi";
 import LayerTimeline from "./LayerTimeline";
+import DraggableLayerPreview from "./DraggableLayerPreview";
 import {interpolateKeyframes} from "./animationInterpolation";
 import type {KeyframeScope,KeyframeInput} from "./animationKeyframesApi";
 import {listLayerKeyframes,createLayerKeyframe,updateLayerKeyframe,deleteLayerKeyframe,type LayerKeyframe} from "./layerKeyframesApi";
@@ -100,6 +101,24 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
   catch(err){setError(err instanceof Error?err.message:"Could not delete layer keyframe");}
   finally{setBusy(false);}
  }
+ async function positionLayerAtFrame(x:number,y:number){
+  if(!selected||!draft||busy)return;
+  const layerId=selected;
+  const current=timelinePoints[layerId]??[];
+  const exact=current.find(point=>point.frame_offset===playhead);
+  const motion=current.length?interpolateKeyframes(current,playhead):draft;
+  setBusy(true);setError("");
+  try{
+   if(exact)await updateLayerKeyframe(scope,layerId,exact.id,{position_x:x,position_y:y});
+   else await createLayerKeyframe(scope,layerId,{frame_offset:playhead,position_x:x,position_y:y,scale:motion.scale,rotation:motion.rotation,opacity:motion.opacity,easing:"linear"});
+   const updated=await listLayerKeyframes(scope,layerId);
+   setTimelinePoints(previous=>({...previous,[layerId]:updated}));
+   setPoints(updated);
+   const edited=updated.find(point=>point.frame_offset===playhead);
+   if(edited)setKeyDraft({...edited});
+  }catch(err){setError(err instanceof Error?err.message:"Could not save character position");}
+  finally{setBusy(false);}
+ }
  async function movePoint(layerId:string,point:LayerKeyframe,targetFrame:number){
   if(busy||targetFrame===point.frame_offset)return;
   if(targetFrame<0||targetFrame>=holdFrames||timelinePoints[layerId]?.some(item=>item.id!==point.id&&item.frame_offset===targetFrame)){
@@ -146,11 +165,9 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
     <div className="vl-section-heading"><strong>{selected?"Edit layer":"Layer inspector"}</strong></div>
     {!draft?<div className="vl-empty">Select a layer to edit, or add a new layer.</div>:
     <form onSubmit={e=>void save(e)} className="vl-form">
-     <div className="vl-preview">{draft.visible?<img src={assetImageUrl(scope.projectId,draft.asset_id)}
-       alt="Selected layer artwork" style={(()=>{
-        const motion=selected&&timelinePoints[selected]?.length?interpolateKeyframes(timelinePoints[selected],playhead):draft;
-        return {transform:`translate(${motion.position_x/8}px,${motion.position_y/8}px) rotate(${motion.rotation}deg) scale(${motion.scale})`,opacity:motion.opacity};
-       })()}/>:<span>Layer hidden</span>}</div>
+     <DraggableLayerPreview key={selected+"-"+playhead} imageUrl={assetImageUrl(scope.projectId,draft.asset_id)}
+      draft={draft} points={selected?timelinePoints[selected]??[]:[]} frame={playhead} busy={busy}
+      onPosition={positionLayerAtFrame}/>
      <label>Name<input required maxLength={160} value={draft.name} onChange={e=>setDraft({...draft,name:e.target.value})}/></label>
      <label>Image asset<select value={draft.asset_id} onChange={e=>setDraft({...draft,asset_id:e.target.value})}>
       {images.map(asset=><option key={asset.id} value={asset.id}>{asset.title} · {asset.category}</option>)}
