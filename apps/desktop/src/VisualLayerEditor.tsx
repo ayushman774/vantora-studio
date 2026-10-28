@@ -1,6 +1,10 @@
-import {useEffect,useState,type FormEvent} from "react";
-import {ArrowLeft,Layers,Plus,Trash2,Eye,EyeOff,Save} from "lucide-react";
+import {useEffect,useState,useRef,type FormEvent} from "react";
+import {ArrowLeft,Layers,Plus,Trash2,Eye,EyeOff,Save,Undo2,Redo2} from "lucide-react";
 import {assetImageUrl,type Asset} from "./assetsApi";
+import LayerTimeline from "./LayerTimeline";
+import DraggableLayerPreview from "./DraggableLayerPreview";
+import {interpolateKeyframes} from "./animationInterpolation";
+import {buildMotionPreset,type MotionPreset} from "./motionPresets";
 import type {KeyframeScope,KeyframeInput} from "./animationKeyframesApi";
 import {listLayerKeyframes,createLayerKeyframe,updateLayerKeyframe,deleteLayerKeyframe,type LayerKeyframe} from "./layerKeyframesApi";
 import {
@@ -8,6 +12,10 @@ import {
  type VisualLayer,type VisualLayerInput
 } from "./visualLayersApi";
 
+type HistoryAction=
+ |{kind:"move";layerId:string;keyframeId:string;before:number;after:number}
+ |{kind:"position";layerId:string;frame:number;before:{x:number;y:number}|null;after:{x:number;y:number};snapshot:KeyframeInput};
+const HISTORY_LIMIT=40;
 const empty=(asset:Asset,order:number):VisualLayerInput=>({
  asset_id:asset.id,name:asset.title,layer_order:order,
  position_x:0,position_y:0,scale:1,rotation:0,opacity:1,visible:true
@@ -19,25 +27,92 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
  const [selected,setSelected]=useState<string|null>(null);
  const [draft,setDraft]=useState<VisualLayerInput|null>(null);
  const [busy,setBusy]=useState(false);
+ const undoStack=useRef<HistoryAction[]>([]);
+ const redoStack=useRef<HistoryAction[]>([]);
+ const [historyVersion,setHistoryVersion]=useState(0);
+ const historyScope=useRef("");
+ const scopeKey=[scope.projectId,scope.seasonId,scope.episodeId,scope.sceneId,scope.shotId,scope.frameId].join("/");
+ if(historyScope.current!==scopeKey){historyScope.current=scopeKey;undoStack.current=[];redoStack.current=[];}
+ function clearHistory(){undoStack.current=[];redoStack.current=[];setHistoryVersion(v=>v+1);}
+ function record(action:HistoryAction){
+  undoStack.current=[...undoStack.current,action].slice(-HISTORY_LIMIT);
+  redoStack.current=[];setHistoryVersion(v=>v+1);
+ }
+ async function syncHistoryLayer(layerId:string){
+  const updated=await listLayerKeyframes(scope,layerId);
+  setTimelinePoints(previous=>({...previous,[layerId]:updated}));
+  if(selected===layerId){setPoints(updated);setKeyDraft(null);}
+ }
+ async function applyHistory(action:HistoryAction,undo:boolean){
+  const existing=await listLayerKeyframes(scope,action.layerId);
+  if(action.kind==="move"){
+   const point=existing.find(item=>item.id===action.keyframeId);
+   if(!point)throw new Error("Keyframe no longer exists. Undo history was cleared.");
+   const target=undo?action.before:action.after;
+   if(existing.some(item=>item.id!==point.id&&item.frame_offset===target))throw new Error("Target frame is occupied. Undo history was cleared.");
+   await updateLayerKeyframe(scope,action.layerId,point.id,{frame_offset:target});
+   setPlayhead(target);
+  }else{
+   const point=existing.find(item=>item.frame_offset===action.frame);
+   const target=undo?action.before:action.after;
+   if(target===null){
+    if(point)await deleteLayerKeyframe(scope,action.layerId,point.id);
+   }else if(point){
+    await updateLayerKeyframe(scope,action.layerId,point.id,{position_x:target.x,position_y:target.y});
+   }else{
+    await createLayerKeyframe(scope,action.layerId,{...action.snapshot,frame_offset:action.frame,position_x:target.x,position_y:target.y});
+   }
+   setPlayhead(action.frame);
+  }
+  await syncHistoryLayer(action.layerId);
+ }
+ async function historyStep(undo:boolean){
+  if(busy)return;
+  const source=undo?undoStack:redoStack,destination=undo?redoStack:undoStack;
+  const action=source.current[source.current.length-1];if(!action)return;
+  setBusy(true);setError("");
+  try{
+   await applyHistory(action,undo);
+   source.current=source.current.slice(0,-1);
+   destination.current=[...destination.current,action].slice(-HISTORY_LIMIT);
+   setHistoryVersion(v=>v+1);
+  }catch(err){
+   undoStack.current=[];redoStack.current=[];setHistoryVersion(v=>v+1);
+   setError(err instanceof Error?err.message:"Undo/redo failed. History was cleared.");
+   try{await syncHistoryLayer(action.layerId);}catch{/* retain original error */}
+  }finally{setBusy(false);}
+ }
+ void historyVersion;
  const [points,setPoints]=useState<LayerKeyframe[]>([]);
+ const [timelinePoints,setTimelinePoints]=useState<Record<string,LayerKeyframe[]>>({});
+ const [playhead,setPlayhead]=useState(0);
+ const [preset,setPreset]=useState<MotionPreset>("slide-in");
+ const [presetStart,setPresetStart]=useState(0);
+ const [presetEnd,setPresetEnd]=useState(Math.max(1,holdFrames-1));
  const [keyDraft,setKeyDraft]=useState<(KeyframeInput&{id?:string})|null>(null);
  const [loading,setLoading]=useState(true);
  const [error,setError]=useState("");
+ const [success,setSuccess]=useState("");
  const images=assets.filter(asset=>asset.media_type.startsWith("image/"));
+ async function refreshTimeline(items:VisualLayer[]){
+  const entries=await Promise.all(items.map(async layer=>[layer.id,await listLayerKeyframes(scope,layer.id)] as const));
+  setTimelinePoints(Object.fromEntries(entries));
+ }
  async function reload(){
   const items=await listVisualLayers(scope);
   setLayers(items);
+  await refreshTimeline(items);
   return items;
  }
  useEffect(()=>{
   let active=true;
   setLoading(true);setError("");
-  listVisualLayers(scope).then(items=>{if(active)setLayers(items);})
+  listVisualLayers(scope).then(async items=>{if(active){setLayers(items);await refreshTimeline(items);}})
    .catch(e=>{if(active)setError(e instanceof Error?e.message:"Unable to load layers");})
    .finally(()=>{if(active)setLoading(false);});
   return()=>{active=false;};
  },[scope.projectId,scope.seasonId,scope.episodeId,scope.sceneId,scope.shotId,scope.frameId]);
- async function loadPoints(id:string){try{setPoints(await listLayerKeyframes(scope,id));}catch(e){setError(e instanceof Error?e.message:"Could not load layer keyframes");}}
+ async function loadPoints(id:string){try{const next=await listLayerKeyframes(scope,id);setPoints(next);setTimelinePoints(previous=>({...previous,[id]:next}));}catch(e){setError(e instanceof Error?e.message:"Could not load layer keyframes");}}
  function select(layer:VisualLayer){setSelected(layer.id);setKeyDraft(null);setPoints([]);void loadPoints(layer.id);setDraft({
   asset_id:layer.asset_id,name:layer.name,layer_order:layer.layer_order,
   position_x:layer.position_x,position_y:layer.position_y,scale:layer.scale,
@@ -57,13 +132,14 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
    const items=await reload();
    const updated=items.find(layer=>layer.id===item.id);
    if(updated)select(updated);
+   clearHistory();
   }catch(e){setError(e instanceof Error?e.message:"Could not save layer");}
   finally{setBusy(false);}
  }
  async function remove(){
   if(!selected||busy||!window.confirm("Remove this layer? The original asset will remain in the library."))return;
   setBusy(true);setError("");
-  try{await deleteVisualLayer(scope,selected);await reload();setSelected(null);setDraft(null);}
+  try{await deleteVisualLayer(scope,selected);await reload();setSelected(null);setDraft(null);setPoints([]);clearHistory();}
   catch(e){setError(e instanceof Error?e.message:"Could not delete layer");}
   finally{setBusy(false);}
  }
@@ -80,16 +156,81 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
   const {id,...data}=keyDraft;
   if(!Number.isInteger(data.frame_offset)||data.frame_offset<0||data.frame_offset>=holdFrames||data.scale<=0||data.scale>10||data.opacity<0||data.opacity>1||![data.position_x,data.position_y,data.scale,data.rotation,data.opacity].every(Number.isFinite)){setError("Check animation keyframe values.");return;}
   setBusy(true);setError("");
-  try{if(id)await updateLayerKeyframe(scope,selected,id,data);else await createLayerKeyframe(scope,selected,data);await loadPoints(selected);setKeyDraft(null);}
+  try{if(id)await updateLayerKeyframe(scope,selected,id,data);else await createLayerKeyframe(scope,selected,data);await loadPoints(selected);setKeyDraft(null);clearHistory();}
   catch(err){setError(err instanceof Error?err.message:"Could not save layer keyframe");}
   finally{setBusy(false);}
  }
  async function removePoint(id:string){
   if(!selected||busy||!window.confirm("Delete this layer keyframe?"))return;
   setBusy(true);setError("");
-  try{await deleteLayerKeyframe(scope,selected,id);await loadPoints(selected);setKeyDraft(null);}
+  try{await deleteLayerKeyframe(scope,selected,id);await loadPoints(selected);setKeyDraft(null);clearHistory();}
   catch(err){setError(err instanceof Error?err.message:"Could not delete layer keyframe");}
   finally{setBusy(false);}
+ }
+ async function positionLayerAtFrame(x:number,y:number){
+  if(!selected||!draft||busy)return;
+  const layerId=selected;
+  const current=timelinePoints[layerId]??[];
+  const exact=current.find(point=>point.frame_offset===playhead);
+  const motion=current.length?interpolateKeyframes(current,playhead):draft;
+  setBusy(true);setError("");
+  try{
+   if(exact)await updateLayerKeyframe(scope,layerId,exact.id,{position_x:x,position_y:y});
+   else await createLayerKeyframe(scope,layerId,{frame_offset:playhead,position_x:x,position_y:y,scale:motion.scale,rotation:motion.rotation,opacity:motion.opacity,easing:"linear"});
+   const updated=await listLayerKeyframes(scope,layerId);
+   setTimelinePoints(previous=>({...previous,[layerId]:updated}));
+   setPoints(updated);
+   const edited=updated.find(point=>point.frame_offset===playhead);
+   if(edited)setKeyDraft({...edited});
+   record({kind:"position",layerId,frame:playhead,before:exact?{x:exact.position_x,y:exact.position_y}:null,after:{x,y},snapshot:{frame_offset:playhead,position_x:motion.position_x,position_y:motion.position_y,scale:motion.scale,rotation:motion.rotation,opacity:motion.opacity,easing:exact?.easing??"linear"}});
+  }catch(err){setError(err instanceof Error?err.message:"Could not save character position");}
+  finally{setBusy(false);}
+ }
+ async function movePoint(layerId:string,point:LayerKeyframe,targetFrame:number){
+  if(busy||targetFrame===point.frame_offset)return;
+  if(targetFrame<0||targetFrame>=holdFrames||timelinePoints[layerId]?.some(item=>item.id!==point.id&&item.frame_offset===targetFrame)){
+   setError("That frame already contains a keyframe, or is outside the animation.");return;
+  }
+  setBusy(true);setError("");
+  try{
+   await updateLayerKeyframe(scope,layerId,point.id,{frame_offset:targetFrame});
+   const updated=await listLayerKeyframes(scope,layerId);
+   setTimelinePoints(previous=>({...previous,[layerId]:updated}));
+   if(selected===layerId)setPoints(updated);
+   setPlayhead(targetFrame);
+   if(selected===layerId&&keyDraft?.id===point.id)setKeyDraft(previous=>previous?{...previous,frame_offset:targetFrame}:previous);
+   record({kind:"move",layerId,keyframeId:point.id,before:point.frame_offset,after:targetFrame});
+  }catch(err){setError(err instanceof Error?err.message:"Could not move keyframe");}
+  finally{setBusy(false);}
+ }
+ async function applyPreset(){
+  if(!selected||!draft||busy)return;
+  const layerId=selected;
+  const start=presetStart,end=presetEnd;
+  if(!Number.isInteger(start)||!Number.isInteger(end)||start<0||end>=holdFrames||start>=end){
+   setError("Choose two different frames within the current shot.");return;
+  }
+  const existing=timelinePoints[layerId]??[];
+  if(existing.some(point=>point.frame_offset===start||point.frame_offset===end)){
+   setError("Preset frames already contain keyframes. Choose unoccupied frames to preserve existing animation.");return;
+  }
+  const base=existing.length?interpolateKeyframes(existing,start):draft;
+  const generated=buildMotionPreset(preset,start,end,base);
+  setBusy(true);setError("");setSuccess("");
+  const created:string[]=[];
+  try{
+   for(const point of generated){
+    const result=await createLayerKeyframe(scope,layerId,point);
+    created.push(result.id);
+   }
+   await loadPoints(layerId);setPlayhead(start);setKeyDraft(null);clearHistory();
+   setSuccess("Motion preset saved successfully. Two keyframes were created at frames "+start+" and "+end+".");
+  }catch(err){
+   const rollback=await Promise.allSettled(created.map(id=>deleteLayerKeyframe(scope,layerId,id)));
+   try{await loadPoints(layerId);}catch{/* preserve original failure */}
+   const rollbackFailed=rollback.some(item=>item.status==="rejected");
+   setError((err instanceof Error?err.message:"Could not apply motion preset")+(rollbackFailed?" Some preset keyframes could not be rolled back; inspect the timeline.":""));
+  }finally{setBusy(false);}
  }
  function numeric(key:"layer_order"|"position_x"|"position_y"|"scale"|"rotation"|"opacity",value:number){
   setDraft(previous=>previous?{...previous,[key]:value}:previous);
@@ -102,6 +243,15 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
    <button className="primary-action" type="button" disabled={loading||busy||!images.length} onClick={add}><Plus size={15}/> Add layer</button>
   </header>
   {error&&<div className="project-error" role="alert">{error}</div>}
+  {success&&<div className="vl-success" role="status" aria-live="polite">{success}</div>}
+  <div className="vl-history-toolbar" aria-label="Animation history controls">
+   <button type="button" className="secondary-action" disabled={busy||undoStack.current.length===0} onClick={()=>void historyStep(true)}><Undo2 size={15}/> Undo animation</button>
+   <button type="button" className="secondary-action" disabled={busy||redoStack.current.length===0} onClick={()=>void historyStep(false)}><Redo2 size={15}/> Redo animation</button>
+   <span>Undo/redo tracks timeline keyframe moves and preview position changes during this editing session.</span>
+  </div>
+  <LayerTimeline layers={layers} keyframes={timelinePoints} holdFrames={holdFrames} playhead={playhead} selectedLayerId={selected}
+   onSeek={setPlayhead} busy={busy} onMoveKeyframe={movePoint} onSelectLayer={id=>{const layer=layers.find(item=>item.id===id);if(layer)select(layer);}}
+   onSelectKeyframe={(id,point)=>{const layer=layers.find(item=>item.id===id);if(layer)select(layer);setKeyDraft({...point});}}/>
   <div className="vl-layout">
    <section className="vl-stack" aria-label="Visual layer stack">
     <div className="vl-section-heading"><Layers size={17}/><strong>Layer stack</strong><span>{layers.length} layers</span></div>
@@ -118,8 +268,9 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
     <div className="vl-section-heading"><strong>{selected?"Edit layer":"Layer inspector"}</strong></div>
     {!draft?<div className="vl-empty">Select a layer to edit, or add a new layer.</div>:
     <form onSubmit={e=>void save(e)} className="vl-form">
-     <div className="vl-preview">{draft.visible?<img src={assetImageUrl(scope.projectId,draft.asset_id)}
-       alt="Selected layer artwork" style={{transform:`translate(${draft.position_x/8}px,${draft.position_y/8}px) rotate(${draft.rotation}deg) scale(${draft.scale})`,opacity:draft.opacity}}/>:<span>Layer hidden</span>}</div>
+     <DraggableLayerPreview key={selected+"-"+playhead} imageUrl={assetImageUrl(scope.projectId,draft.asset_id)}
+      draft={draft} points={selected?timelinePoints[selected]??[]:[]} frame={playhead} busy={busy}
+      onPosition={positionLayerAtFrame}/>
      <label>Name<input required maxLength={160} value={draft.name} onChange={e=>setDraft({...draft,name:e.target.value})}/></label>
      <label>Image asset<select value={draft.asset_id} onChange={e=>setDraft({...draft,asset_id:e.target.value})}>
       {images.map(asset=><option key={asset.id} value={asset.id}>{asset.title} · {asset.category}</option>)}
@@ -138,6 +289,21 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
      </div>
     </form>}
 
+    {selected&&<section className="ak-panel vl-motion-presets" aria-label="Motion presets">
+     <div className="ak-section-head"><div><span className="eyebrow">QUICK ANIMATION</span><h3>Motion presets</h3></div></div>
+     <p className="vl-note">Generate two editable keyframes. Existing keyframes are never overwritten. Select two free frames.</p>
+     <div className="vl-preset-fields">
+      <label>Effect<select value={preset} onChange={event=>setPreset(event.target.value as MotionPreset)}>
+       <option value="slide-in">Slide in</option><option value="slide-out">Slide out</option>
+       <option value="zoom-in">Zoom in</option><option value="zoom-out">Zoom out</option>
+       <option value="fade-in">Fade in</option><option value="fade-out">Fade out</option>
+       <option value="rotate">Rotate 90°</option>
+      </select></label>
+      <label>Start frame<input type="number" min={0} max={Math.max(0,holdFrames-1)} step={1} value={presetStart} onChange={event=>setPresetStart(Number(event.target.value))}/></label>
+      <label>End frame<input type="number" min={0} max={Math.max(0,holdFrames-1)} step={1} value={presetEnd} onChange={event=>setPresetEnd(Number(event.target.value))}/></label>
+     </div>
+     <button type="button" className="primary-action" disabled={busy||holdFrames<2} onClick={()=>void applyPreset()}>Apply motion preset</button>
+    </section>}
     {selected&&<section className="ak-panel vl-keyframe-panel">
      <div className="ak-section-head"><div><span className="eyebrow">INDEPENDENT ANIMATION</span><h3>Layer keyframes</h3></div>
       <button type="button" className="secondary-action" disabled={busy||points.length>=holdFrames} onClick={addPoint}><Plus size={14}/> Add keyframe</button></div>
