@@ -6,7 +6,17 @@ async function request<T>(url:string,method="GET",data?:object):Promise<T>{
  let response:Response;
  try{response=await fetch(url,{method,headers:{"Content-Type":"application/json"},...(data?{body:JSON.stringify(data)}:{})});}
  catch{throw new Error("Local backend unavailable. Start FastAPI and retry.");}
- if(!response.ok){let message="Layer keyframe request failed (HTTP "+response.status+")";try{const body:unknown=await response.json();if(body&&typeof body==="object"&&"detail" in body&&typeof body.detail==="string")message=body.detail;}catch{/* preserve status */}throw new Error(message);}
+ if(!response.ok){let message="Layer keyframe request failed (HTTP "+response.status+")";try{const body:unknown=await response.json();if(body&&typeof body==="object"&&"detail" in body){
+ const detail=body.detail;
+ if(typeof detail==="string")message=detail;
+ else if(Array.isArray(detail))message=detail.map((issue:unknown)=>{
+  if(issue&&typeof issue==="object"&&"msg" in issue){
+   const field="loc" in issue&&Array.isArray(issue.loc)?issue.loc.join("."):"keyframe";
+   return field+": "+String(issue.msg);
+  }
+  return JSON.stringify(issue);
+ }).join("; ");
+}}catch{/* preserve status */}throw new Error(message);}
  return response.status===204?undefined as T:response.json() as Promise<T>;
 }
 export const listLayerKeyframes=(s:KeyframeScope,id:string)=>request<LayerKeyframe[]>(root(s,id));
