@@ -86,6 +86,31 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
  const [points,setPoints]=useState<LayerKeyframe[]>([]);
  const [timelinePoints,setTimelinePoints]=useState<Record<string,LayerKeyframe[]>>({});
  const [playhead,setPlayhead]=useState(0);
+ const [playing,setPlaying]=useState(false);
+ const [loopPlayback,setLoopPlayback]=useState(false);
+ useEffect(()=>{
+  if(!playing||busy||holdFrames<2)return;
+  let previous=performance.now();
+  let accumulator=0;
+  const timer=window.setInterval(()=>{
+   const now=performance.now();
+   accumulator+=Math.min(250,now-previous);
+   previous=now;
+   const frames=Math.floor(accumulator/(1000/24));
+   if(!frames)return;
+   accumulator-=frames*(1000/24);
+   setPlayhead(current=>{
+    const last=holdFrames-1;
+    const next=current+frames;
+    if(next<=last)return next;
+    if(loopPlayback)return next%holdFrames;
+    setPlaying(false);
+    return last;
+   });
+  },16);
+  return()=>window.clearInterval(timer);
+ },[playing,busy,holdFrames,loopPlayback]);
+ useEffect(()=>{setPlaying(false);setPlayhead(0);},[scopeKey]);
  const [preset,setPreset]=useState<MotionPreset>("slide-in");
  const [presetConflict,setPresetConflict]=useState<"preserve"|"update"|"replace">("preserve");
  const [presetStart,setPresetStart]=useState(0);
@@ -273,7 +298,8 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
    <span>Undo/redo tracks timeline keyframe moves and preview position changes during this editing session.</span>
   </div>
   <LayerTimeline layers={layers} keyframes={timelinePoints} holdFrames={holdFrames} playhead={playhead} selectedLayerId={selected}
-   onSeek={setPlayhead} busy={busy} onMoveKeyframe={movePoint} onSelectLayer={id=>{const layer=layers.find(item=>item.id===id);if(layer)select(layer);}}
+   playing={playing} loopPlayback={loopPlayback} onTogglePlay={()=>{if(playing){setPlaying(false);return;}if(playhead>=holdFrames-1)setPlayhead(0);setPlaying(true);}} onToggleLoop={()=>setLoopPlayback(value=>!value)}
+   onSeek={frame=>{setPlaying(false);setPlayhead(frame);}} busy={busy||playing} onMoveKeyframe={movePoint} onSelectLayer={id=>{const layer=layers.find(item=>item.id===id);if(layer)select(layer);}}
    onSelectKeyframe={(id,point)=>{const layer=layers.find(item=>item.id===id);if(layer)select(layer);setKeyDraft({...point});}}/>
   <div className="vl-layout">
    <section className="vl-stack" aria-label="Visual layer stack">
