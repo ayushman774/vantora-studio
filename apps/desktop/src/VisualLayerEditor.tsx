@@ -12,7 +12,13 @@ import {
  type VisualLayer,type VisualLayerInput
 } from "./visualLayersApi";
 
+type PointSnapshot=KeyframeInput;
+const snapshot=(point:KeyframeInput):PointSnapshot=>({
+ frame_offset:point.frame_offset,position_x:point.position_x,position_y:point.position_y,
+ scale:point.scale,rotation:point.rotation,opacity:point.opacity,easing:point.easing
+});
 type HistoryAction=
+ |{kind:"preset";layerId:string;before:PointSnapshot[];after:PointSnapshot[]}
  |{kind:"move";layerId:string;keyframeId:string;before:number;after:number}
  |{kind:"position";layerId:string;frame:number;before:{x:number;y:number}|null;after:{x:number;y:number};snapshot:KeyframeInput};
 const HISTORY_LIMIT=40;
@@ -45,7 +51,26 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
  }
  async function applyHistory(action:HistoryAction,undo:boolean){
   const existing=await listLayerKeyframes(scope,action.layerId);
-  if(action.kind==="move"){
+  if(action.kind==="preset"){
+   const target=undo?action.before:action.after;
+   const current=existing.map(snapshot);
+   const targetFrames=new Set(target.map(point=>point.frame_offset));
+   const currentFrames=new Set(current.map(point=>point.frame_offset));
+   const changedFrames=new Set([...currentFrames,...targetFrames]);
+   // Do not overwrite keyframes introduced by unrelated edits.
+   const expected=undo?action.after:action.before;
+   if(JSON.stringify([...current].sort((a,b)=>a.frame_offset-b.frame_offset))!==JSON.stringify([...expected].sort((a,b)=>a.frame_offset-b.frame_offset))){
+    throw new Error("Animation has changed since this preset action. Undo history was cleared.");
+   }
+   // Update shared frames first, then remove obsolete frames and create missing frames.
+   for(const point of target){
+    const match=existing.find(item=>item.frame_offset===point.frame_offset);
+    if(match)await updateLayerKeyframe(scope,action.layerId,match.id,point);
+   }
+   for(const point of existing.filter(item=>!targetFrames.has(item.frame_offset)))await deleteLayerKeyframe(scope,action.layerId,point.id);
+   for(const point of target.filter(item=>!currentFrames.has(item.frame_offset)))await createLayerKeyframe(scope,action.layerId,point);
+   void changedFrames;
+  }else if(action.kind==="move"){
    const point=existing.find(item=>item.id===action.keyframeId);
    if(!point)throw new Error("Keyframe no longer exists. Undo history was cleared.");
    const target=undo?action.before:action.after;
@@ -266,7 +291,10 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
      created.push(result.id);
     }
    }
-   await loadPoints(layerId);setPlayhead(start);setKeyDraft(null);clearHistory();
+   const after=await listLayerKeyframes(scope,layerId);
+   setPoints(after);setTimelinePoints(previous=>({...previous,[layerId]:after}));
+   setPlayhead(start);setKeyDraft(null);
+   record({kind:"preset",layerId,before:existing.map(snapshot),after:after.map(snapshot)});
    setSuccess("Motion preset saved successfully ("+(presetConflict==="preserve"?"preserved existing":presetConflict==="update"?"updated matching":"replaced range")+"). Frames "+start+"–"+end+".");
   }catch(err){
    const rollback=await Promise.allSettled([
@@ -295,7 +323,7 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
   <div className="vl-history-toolbar" aria-label="Animation history controls">
    <button type="button" className="secondary-action" disabled={busy||undoStack.current.length===0} onClick={()=>void historyStep(true)}><Undo2 size={15}/> Undo animation</button>
    <button type="button" className="secondary-action" disabled={busy||redoStack.current.length===0} onClick={()=>void historyStep(false)}><Redo2 size={15}/> Redo animation</button>
-   <span>Undo/redo tracks timeline keyframe moves and preview position changes during this editing session.</span>
+   <span>Undo/redo tracks keyframe moves, character positions, and motion presets during this editing session.</span>
   </div>
   <LayerTimeline layers={layers} keyframes={timelinePoints} holdFrames={holdFrames} playhead={playhead} selectedLayerId={selected}
    playing={playing} loopPlayback={loopPlayback} onTogglePlay={()=>{if(playing){setPlaying(false);return;}if(playhead>=holdFrames-1)setPlayhead(0);setPlaying(true);}} onToggleLoop={()=>setLoopPlayback(value=>!value)}
