@@ -56,7 +56,6 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
    const current=existing.map(snapshot);
    const targetFrames=new Set(target.map(point=>point.frame_offset));
    const currentFrames=new Set(current.map(point=>point.frame_offset));
-   const changedFrames=new Set([...currentFrames,...targetFrames]);
    // Do not overwrite keyframes introduced by unrelated edits.
    const expected=undo?action.after:action.before;
    if(JSON.stringify([...current].sort((a,b)=>a.frame_offset-b.frame_offset))!==JSON.stringify([...expected].sort((a,b)=>a.frame_offset-b.frame_offset))){
@@ -69,7 +68,6 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
    }
    for(const point of existing.filter(item=>!targetFrames.has(item.frame_offset)))await deleteLayerKeyframe(scope,action.layerId,point.id);
    for(const point of target.filter(item=>!currentFrames.has(item.frame_offset)))await createLayerKeyframe(scope,action.layerId,point);
-   void changedFrames;
   }else if(action.kind==="move"){
    const point=existing.find(item=>item.id===action.keyframeId);
    if(!point)throw new Error("Keyframe no longer exists. Undo history was cleared.");
