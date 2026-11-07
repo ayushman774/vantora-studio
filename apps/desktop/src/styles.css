@@ -673,3 +673,11 @@ body,.shell,.main{background:#0b0f14}
 .vl-motion-presets>.primary-action{margin-top:2px;min-height:42px}
 @media(max-width:1050px){.vl-layout{grid-template-columns:minmax(0,1fr)}.vl-stack{position:static}}
 @media(max-width:680px){.vl-motion-presets{padding:16px}.vl-motion-presets .vl-preset-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.vl-motion-presets .vl-preset-fields label:first-child{grid-column:1/-1}}
+
+/* v0.19 animation preview transport */
+.lt-transport{display:flex;align-items:center;flex-wrap:wrap;gap:9px;margin:-4px 0 20px}
+.lt-transport button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:38px;padding:8px 12px}
+.lt-transport button:disabled{opacity:.45;cursor:not-allowed}
+.lt-transport .lt-loop-active{border-color:#bdf65d;color:#c9ff8b;background:#24352a}
+.lt-transport>span{margin-left:auto;color:#9db0c0;font-size:11px}
+@media(max-width:680px){.lt-transport>span{width:100%;margin-left:0}.lt-transport{gap:7px}}
