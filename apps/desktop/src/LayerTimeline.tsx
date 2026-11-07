@@ -1,4 +1,5 @@
 import {useState,useRef,type PointerEvent} from "react";
+import {Play,Pause,Repeat2,SkipBack,SkipForward} from "lucide-react";
 import type {VisualLayer} from "./visualLayersApi";
 import type {LayerKeyframe} from "./layerKeyframesApi";
 
@@ -7,6 +8,10 @@ type Props={
  keyframes:Record<string,LayerKeyframe[]>;
  holdFrames:number;
  playhead:number;
+ playing:boolean;
+ loopPlayback:boolean;
+ onTogglePlay:()=>void;
+ onToggleLoop:()=>void;
  selectedLayerId:string|null;
  onSeek:(frame:number)=>void;
  onSelectLayer:(id:string)=>void;
@@ -14,7 +19,7 @@ type Props={
  onMoveKeyframe:(layerId:string,point:LayerKeyframe,targetFrame:number)=>Promise<void>;
  busy:boolean;
 };
-export default function LayerTimeline({layers,keyframes,holdFrames,playhead,selectedLayerId,onSeek,onSelectLayer,onSelectKeyframe,onMoveKeyframe,busy}:Props){
+export default function LayerTimeline({layers,keyframes,holdFrames,playhead,playing,loopPlayback,onTogglePlay,onToggleLoop,selectedLayerId,onSeek,onSelectLayer,onSelectKeyframe,onMoveKeyframe,busy}:Props){
  const duration=Math.max(1,holdFrames-1);
  const [drag,setDrag]=useState<{layerId:string;point:LayerKeyframe;frame:number;originX:number;moved:boolean}|null>(null);
  const dragRef=useRef<typeof drag>(null);
@@ -51,6 +56,13 @@ export default function LayerTimeline({layers,keyframes,holdFrames,playhead,sele
  return <section className="lt-panel" aria-label="Layer animation timeline">
   <div className="lt-header"><div><span className="eyebrow">V0.18 / ANIMATION</span><h3>Layer timeline</h3></div>
    <span className="lt-timecode">Frame {playhead} / {duration} <small>· {(playhead/24).toFixed(2)}s</small></span></div>
+  <div className="lt-transport" role="group" aria-label="Animation preview playback">
+   <button type="button" className="secondary-action" onClick={()=>onSeek(0)} aria-label="Go to first frame"><SkipBack size={16}/></button>
+   <button type="button" className="primary-action" onClick={onTogglePlay} disabled={holdFrames<2} aria-label={playing?"Pause animation":"Play animation"}>{playing?<Pause size={16}/>:<Play size={16}/>} {playing?"Pause":"Play preview"}</button>
+   <button type="button" className="secondary-action" onClick={()=>onSeek(Math.max(0,holdFrames-1))} aria-label="Go to last frame"><SkipForward size={16}/></button>
+   <button type="button" className={"secondary-action"+(loopPlayback?" lt-loop-active":"")} onClick={onToggleLoop} aria-pressed={loopPlayback} aria-label="Loop animation"><Repeat2 size={16}/> Loop</button>
+   <span>24 FPS · Preview only</span>
+  </div>
   <div className="lt-scrub"><label htmlFor="lt-playhead">Scrub animation</label>
    <input id="lt-playhead" aria-label="Animation playhead" type="range" min={0} max={duration} step={1} value={playhead} onChange={event=>seek(Number(event.target.value))}/>
    <div className="lt-ticks">{marks.map(frame=><span key={frame}>{frame}</span>)}</div></div>

@@ -12,7 +12,13 @@ import {
  type VisualLayer,type VisualLayerInput
 } from "./visualLayersApi";
 
+type PointSnapshot=KeyframeInput;
+const snapshot=(point:KeyframeInput):PointSnapshot=>({
+ frame_offset:point.frame_offset,position_x:point.position_x,position_y:point.position_y,
+ scale:point.scale,rotation:point.rotation,opacity:point.opacity,easing:point.easing
+});
 type HistoryAction=
+ |{kind:"preset";layerId:string;before:PointSnapshot[];after:PointSnapshot[]}
  |{kind:"move";layerId:string;keyframeId:string;before:number;after:number}
  |{kind:"position";layerId:string;frame:number;before:{x:number;y:number}|null;after:{x:number;y:number};snapshot:KeyframeInput};
 const HISTORY_LIMIT=40;
@@ -45,7 +51,24 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
  }
  async function applyHistory(action:HistoryAction,undo:boolean){
   const existing=await listLayerKeyframes(scope,action.layerId);
-  if(action.kind==="move"){
+  if(action.kind==="preset"){
+   const target=undo?action.before:action.after;
+   const current=existing.map(snapshot);
+   const targetFrames=new Set(target.map(point=>point.frame_offset));
+   const currentFrames=new Set(current.map(point=>point.frame_offset));
+   // Do not overwrite keyframes introduced by unrelated edits.
+   const expected=undo?action.after:action.before;
+   if(JSON.stringify([...current].sort((a,b)=>a.frame_offset-b.frame_offset))!==JSON.stringify([...expected].sort((a,b)=>a.frame_offset-b.frame_offset))){
+    throw new Error("Animation has changed since this preset action. Undo history was cleared.");
+   }
+   // Update shared frames first, then remove obsolete frames and create missing frames.
+   for(const point of target){
+    const match=existing.find(item=>item.frame_offset===point.frame_offset);
+    if(match)await updateLayerKeyframe(scope,action.layerId,match.id,point);
+   }
+   for(const point of existing.filter(item=>!targetFrames.has(item.frame_offset)))await deleteLayerKeyframe(scope,action.layerId,point.id);
+   for(const point of target.filter(item=>!currentFrames.has(item.frame_offset)))await createLayerKeyframe(scope,action.layerId,point);
+  }else if(action.kind==="move"){
    const point=existing.find(item=>item.id===action.keyframeId);
    if(!point)throw new Error("Keyframe no longer exists. Undo history was cleared.");
    const target=undo?action.before:action.after;
@@ -86,7 +109,33 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
  const [points,setPoints]=useState<LayerKeyframe[]>([]);
  const [timelinePoints,setTimelinePoints]=useState<Record<string,LayerKeyframe[]>>({});
  const [playhead,setPlayhead]=useState(0);
+ const [playing,setPlaying]=useState(false);
+ const [loopPlayback,setLoopPlayback]=useState(false);
+ useEffect(()=>{
+  if(!playing||busy||holdFrames<2)return;
+  let previous=performance.now();
+  let accumulator=0;
+  const timer=window.setInterval(()=>{
+   const now=performance.now();
+   accumulator+=Math.min(250,now-previous);
+   previous=now;
+   const frames=Math.floor(accumulator/(1000/24));
+   if(!frames)return;
+   accumulator-=frames*(1000/24);
+   setPlayhead(current=>{
+    const last=holdFrames-1;
+    const next=current+frames;
+    if(next<=last)return next;
+    if(loopPlayback)return next%holdFrames;
+    setPlaying(false);
+    return last;
+   });
+  },16);
+  return()=>window.clearInterval(timer);
+ },[playing,busy,holdFrames,loopPlayback]);
+ useEffect(()=>{setPlaying(false);setPlayhead(0);},[scopeKey]);
  const [preset,setPreset]=useState<MotionPreset>("slide-in");
+ const [presetConflict,setPresetConflict]=useState<"preserve"|"update"|"replace">("preserve");
  const [presetStart,setPresetStart]=useState(0);
  const [presetEnd,setPresetEnd]=useState(Math.max(1,holdFrames-1));
  const [keyDraft,setKeyDraft]=useState<(KeyframeInput&{id?:string})|null>(null);
@@ -205,31 +254,56 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
  }
  async function applyPreset(){
   if(!selected||!draft||busy)return;
-  const layerId=selected;
-  const start=presetStart,end=presetEnd;
+  const layerId=selected,start=presetStart,end=presetEnd;
+  setSuccess("");
   if(!Number.isInteger(start)||!Number.isInteger(end)||start<0||end>=holdFrames||start>=end){
    setError("Choose two different frames within the current shot.");return;
   }
-  const existing=timelinePoints[layerId]??[];
-  if(existing.some(point=>point.frame_offset===start||point.frame_offset===end)){
-   setError("Preset frames already contain keyframes. Choose unoccupied frames to preserve existing animation.");return;
-  }
-  const base=existing.length?interpolateKeyframes(existing,start):draft;
-  const generated=buildMotionPreset(preset,start,end,base);
-  setBusy(true);setError("");setSuccess("");
+  // Fetch current server state before checking collisions; the timeline may be stale.
+  setBusy(true);setError("");
   const created:string[]=[];
+  const modified:{id:string;before:KeyframeInput}[]=[];
+  const removed:KeyframeInput[]=[];
   try{
-   for(const point of generated){
-    const result=await createLayerKeyframe(scope,layerId,point);
-    created.push(result.id);
+   const existing=await listLayerKeyframes(scope,layerId);
+   const occupied=existing.filter(point=>point.frame_offset===start||point.frame_offset===end);
+   if(presetConflict==="preserve"&&occupied.length)throw new Error("Preset frames already contain keyframes. Choose free frames or change the conflict policy.");
+   const inRange=existing.filter(point=>point.frame_offset>=start&&point.frame_offset<=end);
+   if(presetConflict==="replace"&&inRange.length&&!window.confirm("Replace "+inRange.length+" existing keyframe(s) between frames "+start+" and "+end+"? This removes animation within the range."))return;
+   const base=existing.length?interpolateKeyframes(existing,start):draft;
+   const generated=buildMotionPreset(preset,start,end,base);
+   if(presetConflict==="replace"){
+    // Delete all points in range, preserving snapshots for best-effort recovery.
+    for(const point of inRange){
+     removed.push({frame_offset:point.frame_offset,position_x:point.position_x,position_y:point.position_y,scale:point.scale,rotation:point.rotation,opacity:point.opacity,easing:point.easing});
+     await deleteLayerKeyframe(scope,layerId,point.id);
+    }
    }
-   await loadPoints(layerId);setPlayhead(start);setKeyDraft(null);clearHistory();
-   setSuccess("Motion preset saved successfully. Two keyframes were created at frames "+start+" and "+end+".");
+   for(const point of generated){
+    const match=presetConflict==="update"?existing.find(item=>item.frame_offset===point.frame_offset):undefined;
+    if(match){
+     modified.push({id:match.id,before:{frame_offset:match.frame_offset,position_x:match.position_x,position_y:match.position_y,scale:match.scale,rotation:match.rotation,opacity:match.opacity,easing:match.easing}});
+     await updateLayerKeyframe(scope,layerId,match.id,point);
+    }else{
+     const result=await createLayerKeyframe(scope,layerId,point);
+     created.push(result.id);
+    }
+   }
+   const after=await listLayerKeyframes(scope,layerId);
+   setPoints(after);setTimelinePoints(previous=>({...previous,[layerId]:after}));
+   setPlayhead(start);setKeyDraft(null);
+   record({kind:"preset",layerId,before:existing.map(snapshot),after:after.map(snapshot)});
+   setSuccess("Motion preset saved successfully ("+(presetConflict==="preserve"?"preserved existing":presetConflict==="update"?"updated matching":"replaced range")+"). Frames "+start+"–"+end+".");
   }catch(err){
-   const rollback=await Promise.allSettled(created.map(id=>deleteLayerKeyframe(scope,layerId,id)));
-   try{await loadPoints(layerId);}catch{/* preserve original failure */}
-   const rollbackFailed=rollback.some(item=>item.status==="rejected");
-   setError((err instanceof Error?err.message:"Could not apply motion preset")+(rollbackFailed?" Some preset keyframes could not be rolled back; inspect the timeline.":""));
+   const rollback=await Promise.allSettled([
+    ...created.map(id=>deleteLayerKeyframe(scope,layerId,id)),
+    ...modified.map(item=>updateLayerKeyframe(scope,layerId,item.id,item.before)),
+   ]);
+   // Recreate deleted points only after generated points have been removed.
+   const restore=await Promise.allSettled(removed.map(point=>createLayerKeyframe(scope,layerId,point)));
+   try{await loadPoints(layerId);}catch{/* preserve original error */}
+   const rollbackFailed=[...rollback,...restore].some(item=>item.status==="rejected");
+   setError((err instanceof Error?err.message:"Could not apply motion preset")+(rollbackFailed?" Recovery was incomplete; inspect the timeline before continuing.":""));
   }finally{setBusy(false);}
  }
  function numeric(key:"layer_order"|"position_x"|"position_y"|"scale"|"rotation"|"opacity",value:number){
@@ -247,10 +321,11 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
   <div className="vl-history-toolbar" aria-label="Animation history controls">
    <button type="button" className="secondary-action" disabled={busy||undoStack.current.length===0} onClick={()=>void historyStep(true)}><Undo2 size={15}/> Undo animation</button>
    <button type="button" className="secondary-action" disabled={busy||redoStack.current.length===0} onClick={()=>void historyStep(false)}><Redo2 size={15}/> Redo animation</button>
-   <span>Undo/redo tracks timeline keyframe moves and preview position changes during this editing session.</span>
+   <span>Undo/redo tracks keyframe moves, character positions, and motion presets during this editing session.</span>
   </div>
   <LayerTimeline layers={layers} keyframes={timelinePoints} holdFrames={holdFrames} playhead={playhead} selectedLayerId={selected}
-   onSeek={setPlayhead} busy={busy} onMoveKeyframe={movePoint} onSelectLayer={id=>{const layer=layers.find(item=>item.id===id);if(layer)select(layer);}}
+   playing={playing} loopPlayback={loopPlayback} onTogglePlay={()=>{if(playing){setPlaying(false);return;}if(playhead>=holdFrames-1)setPlayhead(0);setPlaying(true);}} onToggleLoop={()=>setLoopPlayback(value=>!value)}
+   onSeek={frame=>{setPlaying(false);setPlayhead(frame);}} busy={busy||playing} onMoveKeyframe={movePoint} onSelectLayer={id=>{const layer=layers.find(item=>item.id===id);if(layer)select(layer);}}
    onSelectKeyframe={(id,point)=>{const layer=layers.find(item=>item.id===id);if(layer)select(layer);setKeyDraft({...point});}}/>
   <div className="vl-layout">
    <section className="vl-stack" aria-label="Visual layer stack">
@@ -291,7 +366,7 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
 
     {selected&&<section className="ak-panel vl-motion-presets" aria-label="Motion presets">
      <div className="ak-section-head"><div><span className="eyebrow">QUICK ANIMATION</span><h3>Motion presets</h3></div></div>
-     <p className="vl-note">Generate two editable keyframes. Existing keyframes are never overwritten. Select two free frames.</p>
+     <p className="vl-note">Generate two editable keyframes. Choose how to handle existing animation at the selected frames.</p>
      <div className="vl-preset-fields">
       <label>Effect<select value={preset} onChange={event=>setPreset(event.target.value as MotionPreset)}>
        <option value="slide-in">Slide in</option><option value="slide-out">Slide out</option>
@@ -302,6 +377,12 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
       <label>Start frame<input type="number" min={0} max={Math.max(0,holdFrames-1)} step={1} value={presetStart} onChange={event=>setPresetStart(Number(event.target.value))}/></label>
       <label>End frame<input type="number" min={0} max={Math.max(0,holdFrames-1)} step={1} value={presetEnd} onChange={event=>setPresetEnd(Number(event.target.value))}/></label>
      </div>
+     <label className="vl-conflict-field">Existing keyframes<select value={presetConflict} disabled={busy} onChange={event=>setPresetConflict(event.target.value as "preserve"|"update"|"replace")}>
+      <option value="preserve">Preserve existing (free frames only)</option>
+      <option value="update">Update matching start/end frames</option>
+      <option value="replace">Replace all keyframes in range (confirm)</option>
+     </select></label>
+     <p className="vl-note vl-conflict-help">{presetConflict==="preserve"?"Existing animation is untouched. Both endpoints must be free.":presetConflict==="update"?"Only matching start and end frames are updated; other keyframes stay unchanged.":"All keyframes between the start and end frames will be removed after confirmation."}</p>
      <button type="button" className="primary-action" disabled={busy||holdFrames<2} onClick={()=>void applyPreset()}>Apply motion preset</button>
     </section>}
     {selected&&<section className="ak-panel vl-keyframe-panel">
