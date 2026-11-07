@@ -325,12 +325,12 @@ export default function VisualLayerEditor({scope,assets,frameTitle,holdFrames,on
       <label>Start frame<input type="number" min={0} max={Math.max(0,holdFrames-1)} step={1} value={presetStart} onChange={event=>setPresetStart(Number(event.target.value))}/></label>
       <label>End frame<input type="number" min={0} max={Math.max(0,holdFrames-1)} step={1} value={presetEnd} onChange={event=>setPresetEnd(Number(event.target.value))}/></label>
      </div>
-     <label>Existing keyframes<select value={presetConflict} disabled={busy} onChange={event=>setPresetConflict(event.target.value as "preserve"|"update"|"replace")}>
+     <label className="vl-conflict-field">Existing keyframes<select value={presetConflict} disabled={busy} onChange={event=>setPresetConflict(event.target.value as "preserve"|"update"|"replace")}>
       <option value="preserve">Preserve existing (free frames only)</option>
       <option value="update">Update matching start/end frames</option>
       <option value="replace">Replace all keyframes in range (confirm)</option>
      </select></label>
-     <p className="vl-note">{presetConflict==="preserve"?"Existing animation is untouched. Both endpoints must be free.":presetConflict==="update"?"Only matching start and end frames are updated; other keyframes stay unchanged.":"All keyframes between the start and end frames will be removed after confirmation."}</p>
+     <p className="vl-note vl-conflict-help">{presetConflict==="preserve"?"Existing animation is untouched. Both endpoints must be free.":presetConflict==="update"?"Only matching start and end frames are updated; other keyframes stay unchanged.":"All keyframes between the start and end frames will be removed after confirmation."}</p>
      <button type="button" className="primary-action" disabled={busy||holdFrames<2} onClick={()=>void applyPreset()}>Apply motion preset</button>
     </section>}
     {selected&&<section className="ak-panel vl-keyframe-panel">
